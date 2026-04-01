@@ -24,6 +24,7 @@ import type {
 } from "@excalidraw/excalidraw/types";
 
 import { FILE_UPLOAD_MAX_BYTES } from "../app_constants";
+import { AimtutorWordmark } from "./AimtutorWordmark";
 import { encodeFilesForUpload } from "../data/FileManager";
 import { loadFirebaseStorage, saveFilesToFirebase } from "../data/firebase";
 
@@ -97,11 +98,7 @@ export const ExportToExcalidrawPlus: React.FC<{
   return (
     <Card color="primary">
       <div className="Card-icon">
-        <img
-          src="/aimtutor-logo.png"
-          alt="aimtutor.ai"
-          style={{ width: "2.8rem", height: "2.8rem", objectFit: "contain" }}
-        />
+        <AimtutorWordmark variant="card" onPrimary />
       </div>
       <h2>aimtutor.ai+</h2>
       <div className="Card-details">

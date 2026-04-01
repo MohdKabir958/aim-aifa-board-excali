@@ -5,6 +5,7 @@ import { WelcomeScreen } from "@excalidraw/excalidraw/index";
 import React from "react";
 
 import { isClerkEnabled, useAppAuth } from "../auth/AppAuth";
+import { AimtutorWordmark } from "./AimtutorWordmark";
 
 export const AppWelcomeScreen: React.FC<{
   onCollabDialogOpen: () => any;
@@ -48,11 +49,7 @@ export const AppWelcomeScreen: React.FC<{
       <WelcomeScreen.Hints.ToolbarHint />
       <WelcomeScreen.Hints.HelpHint />
       <WelcomeScreen.Center>
-        <img
-          src="/aimtutor-logo.png"
-          alt="aimtutor.ai"
-          style={{ width: "300px", maxWidth: "75vw", height: "auto" }}
-        />
+        <AimtutorWordmark variant="welcome" />
         <WelcomeScreen.Center.Heading>
           {headingContent}
         </WelcomeScreen.Center.Heading>

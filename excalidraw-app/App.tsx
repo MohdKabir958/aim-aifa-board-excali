@@ -145,6 +145,7 @@ import DebugCanvas, {
   isVisualDebuggerEnabled,
   loadSavedDebugState,
 } from "./components/DebugCanvas";
+import { AimtutorWordmark } from "./components/AimtutorWordmark";
 import { AIComponents } from "./components/AI";
 import { useScreenRecorder } from "./hooks/useScreenRecorder";
 import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
@@ -943,7 +944,7 @@ const ExcalidrawWrapper = () => {
         aria-label="aimtutor.ai home"
         title="aimtutor.ai"
       >
-        <img src="/aimtutor-logo.png" alt="aimtutor.ai" />
+        <AimtutorWordmark variant="toolbar" />
       </a>
       <Excalidraw
         onChange={onChange}

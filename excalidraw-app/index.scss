@@ -90,21 +90,119 @@
   position: relative;
 }
 
+/* Sits beside Excalidraw’s main menu (not under it): matches FixedSideContainer
+   offset + --lg-button-size + small gap. Vars live on `.excalidraw` only, so use rem. */
 .aimtutor-brand {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: var(--zIndex-layerUI);
+  top: 1rem;
+  left: calc(1rem + 2.25rem + 0.5rem);
+  z-index: var(--zIndex-layerUI, 4);
   display: inline-flex;
   align-items: center;
   pointer-events: auto;
   text-decoration: none;
+}
 
-  img {
-    display: block;
-    height: 34px;
-    width: auto;
+.aimtutor-wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  font-family:
+    "Plus Jakarta Sans",
+    var(--ui-font, system-ui),
+    -apple-system,
+    sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.aimtutor-wordmark--toolbar {
+  font-size: 1.0625rem;
+}
+
+.aimtutor-wordmark--welcome {
+  font-size: clamp(1.75rem, 5.25vw, 2.75rem);
+  margin-bottom: 0.25em;
+}
+
+.aimtutor-wordmark--card {
+  font-size: 1.15rem;
+}
+
+/* Light: Aim = blue; Tutor + .ai = black */
+.aimtutor-wordmark__aim {
+  color: #2563eb;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.aimtutor-wordmark__rest,
+.aimtutor-wordmark__tld {
+  color: #0a0a0a;
+  font-weight: 600;
+}
+
+/* Dark: Aim = brighter blue; Tutor + .ai = white */
+.excalidraw-app:has(.excalidraw.theme--dark)
+  .aimtutor-wordmark:not(.aimtutor-wordmark--on-primary)
+  .aimtutor-wordmark__aim,
+.excalidraw.theme--dark
+  .aimtutor-wordmark:not(.aimtutor-wordmark--on-primary)
+  .aimtutor-wordmark__aim,
+html.dark
+  .aimtutor-wordmark:not(.aimtutor-wordmark--on-primary)
+  .aimtutor-wordmark__aim {
+  color: #60a5fa;
+}
+
+.excalidraw-app:has(.excalidraw.theme--dark)
+  .aimtutor-wordmark:not(.aimtutor-wordmark--on-primary)
+  .aimtutor-wordmark__rest,
+.excalidraw-app:has(.excalidraw.theme--dark)
+  .aimtutor-wordmark:not(.aimtutor-wordmark--on-primary)
+  .aimtutor-wordmark__tld,
+.excalidraw.theme--dark
+  .aimtutor-wordmark:not(.aimtutor-wordmark--on-primary)
+  .aimtutor-wordmark__rest,
+.excalidraw.theme--dark
+  .aimtutor-wordmark:not(.aimtutor-wordmark--on-primary)
+  .aimtutor-wordmark__tld,
+html.dark
+  .aimtutor-wordmark:not(.aimtutor-wordmark--on-primary)
+  .aimtutor-wordmark__rest,
+html.dark
+  .aimtutor-wordmark:not(.aimtutor-wordmark--on-primary)
+  .aimtutor-wordmark__tld {
+  color: #f8fafc;
+}
+
+/* Primary card: high-contrast on purple circle */
+.aimtutor-wordmark--on-primary .aimtutor-wordmark__aim {
+  color: #dbeafe;
+  font-weight: 700;
+}
+
+.aimtutor-wordmark--on-primary .aimtutor-wordmark__rest,
+.aimtutor-wordmark--on-primary .aimtutor-wordmark__tld {
+  color: #fff;
+  font-weight: 600;
+}
+
+@media screen and (min-width: 1921px) {
+  .aimtutor-brand {
+    left: calc(1rem + 2.5rem + 0.5rem);
   }
+
+  :root[dir="rtl"] .aimtutor-brand {
+    left: auto;
+    right: calc(1rem + 2.5rem + 0.5rem);
+  }
+}
+
+:root[dir="rtl"] .aimtutor-brand {
+  left: auto;
+  right: calc(1rem + 2.25rem + 0.5rem);
 }
 
 /* Clerk controls: rendered inside Excalidraw `renderTopRightUI` (z-index above canvas). */
@@ -175,13 +273,19 @@ html.dark .aimtutor-auth__btn--primary,
   color: #fff;
 }
 
-.theme--dark .aimtutor-brand img {
-  filter: brightness(1.03);
-}
-
 @media (max-width: 768px) {
-  .aimtutor-brand img {
-    height: 30px;
+  .aimtutor-brand {
+    top: 0.75rem;
+    left: calc(0.75rem + 2.25rem + 0.5rem);
+  }
+
+  :root[dir="rtl"] .aimtutor-brand {
+    left: auto;
+    right: calc(0.75rem + 2.25rem + 0.5rem);
+  }
+
+  .aimtutor-wordmark--toolbar {
+    font-size: 1rem;
   }
 
   .aimtutor-auth--docked {
