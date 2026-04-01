@@ -3,6 +3,7 @@
   "name": "excalidraw-monorepo",
   "packageManager": "yarn@1.22.22",
   "workspaces": [
+    "ai-backend",
     "excalidraw-app",
     "packages/*",
     "examples/*"
@@ -60,6 +61,7 @@
     "build:version": "yarn --cwd ./excalidraw-app build:version",
     "build": "yarn --cwd ./excalidraw-app build",
     "build:preview": "yarn --cwd ./excalidraw-app build:preview",
+    "ai-backend": "yarn --cwd ./ai-backend start",
     "start": "yarn --cwd ./excalidraw-app start",
     "start:production": "yarn --cwd ./excalidraw-app start:production",
     "start:example": "yarn build:packages && yarn --cwd ./examples/with-script-in-browser start",
@@ -89,6 +91,8 @@
     "clean-install": "yarn rm:node_modules && yarn install"
   },
   "resolutions": {
-    "strip-ansi": "6.0.1"
+    "strip-ansi": "6.0.1",
+    "react": "19.0.3",
+    "react-dom": "19.0.3"
   }
 }

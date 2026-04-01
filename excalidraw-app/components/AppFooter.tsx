@@ -1,13 +1,15 @@
 import { Footer } from "@excalidraw/excalidraw/index";
 import React from "react";
 
-import { isExcalidrawPlusSignedUser } from "../app_constants";
+import { isClerkEnabled, useAppAuth } from "../auth/AppAuth";
 
 import { DebugFooter, isVisualDebuggerEnabled } from "./DebugCanvas";
 import { EncryptedIcon } from "./EncryptedIcon";
 
 export const AppFooter = React.memo(
   ({ onChange }: { onChange: () => void }) => {
+    const { isLoaded, isSignedIn } = useAppAuth();
+
     return (
       <Footer>
         <div
@@ -18,7 +20,7 @@ export const AppFooter = React.memo(
           }}
         >
           {isVisualDebuggerEnabled() && <DebugFooter onChange={onChange} />}
-          {!isExcalidrawPlusSignedUser && <EncryptedIcon />}
+          {(!isClerkEnabled || (isLoaded && !isSignedIn)) && <EncryptedIcon />}
         </div>
       </Footer>
     );

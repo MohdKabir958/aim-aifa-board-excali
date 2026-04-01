@@ -8,11 +8,30 @@ import checker from "vite-plugin-checker";
 import { createHtmlPlugin } from "vite-plugin-html";
 import Sitemap from "vite-plugin-sitemap";
 import { woff2BrowserPlugin } from "../scripts/woff2/woff2-vite-plugins";
+
+/** Yarn workspace root (parent of excalidraw-app/). Used to pin a single React copy. */
+const workspaceRoot = path.resolve(__dirname, "..");
+
 export default defineConfig(({ mode }) => {
-  // To load .env variables
-  const envVars = loadEnv(mode, `../`);
+  // Load `.env*` from monorepo root (primary) and from `excalidraw-app/` (overrides).
+  // `envDir` below only points at the root, so without this merge, variables that
+  // exist only under `excalidraw-app/.env*` would never reach `import.meta.env.VITE_*`.
+  const envRoot = loadEnv(mode, workspaceRoot, "");
+  const envApp = loadEnv(mode, __dirname, "");
+  const envVars = { ...envRoot, ...envApp };
+
+  const importMetaEnvDefine = Object.fromEntries(
+    Object.entries(envVars)
+      .filter(([key]) => key.startsWith("VITE_"))
+      .map(([key, value]) => [
+        `import.meta.env.${key}`,
+        JSON.stringify(value ?? ""),
+      ]),
+  );
+
   // https://vitejs.dev/config/
   return {
+    define: importMetaEnvDefine,
     server: {
       port: Number(envVars.VITE_APP_PORT || 3000),
       // open the browser
@@ -22,7 +41,17 @@ export default defineConfig(({ mode }) => {
     //more located in parallel with the vite.config.ts file but in parent dir
     envDir: "../",
     resolve: {
+      // Monorepo + Vite can resolve two copies of React → "Invalid hook call" in Jotai Provider etc.
+      dedupe: ["react", "react-dom"],
       alias: [
+        {
+          find: "react",
+          replacement: path.join(workspaceRoot, "node_modules/react"),
+        },
+        {
+          find: "react-dom",
+          replacement: path.join(workspaceRoot, "node_modules/react-dom"),
+        },
         {
           find: /^@excalidraw\/common$/,
           replacement: path.resolve(
@@ -119,7 +148,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       Sitemap({
-        hostname: "https://excalidraw.com",
+        hostname: "https://aimtutor.ai",
         outDir: "build",
         changefreq: "monthly",
         // its static in public folder
@@ -212,10 +241,10 @@ export default defineConfig(({ mode }) => {
           maximumFileSizeToCacheInBytes: 2.3 * 1024 ** 2, // 2.3MB
         },
         manifest: {
-          short_name: "Excalidraw",
-          name: "Excalidraw",
+          short_name: "aimtutor.ai",
+          name: "aimtutor.ai",
           description:
-            "Excalidraw is a whiteboard tool that lets you easily sketch diagrams that have a hand-drawn feel to them.",
+            "aimtutor.ai is a whiteboard tool that lets you easily sketch diagrams that have a hand-drawn feel to them.",
           icons: [
             {
               src: "android-chrome-192x192.png",
@@ -239,7 +268,7 @@ export default defineConfig(({ mode }) => {
             },
           ],
           start_url: "/",
-          id: "excalidraw",
+          id: "aimtutor-ai",
           display: "standalone",
           theme_color: "#121212",
           background_color: "#ffffff",
@@ -307,5 +336,8 @@ export default defineConfig(({ mode }) => {
       }),
     ],
     publicDir: "../public",
+    optimizeDeps: {
+      include: ["react", "react-dom", "jotai"],
+    },
   };
 });

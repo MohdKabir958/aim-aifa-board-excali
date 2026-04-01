@@ -4,7 +4,6 @@ import { nanoid } from "nanoid";
 
 import { trackEvent } from "@excalidraw/excalidraw/analytics";
 import { Card } from "@excalidraw/excalidraw/components/Card";
-import { ExcalidrawLogo } from "@excalidraw/excalidraw/components/ExcalidrawLogo";
 import { ToolButton } from "@excalidraw/excalidraw/components/ToolButton";
 import { MIME_TYPES, getFrame } from "@excalidraw/common";
 import {
@@ -13,7 +12,6 @@ import {
 } from "@excalidraw/excalidraw/data/encryption";
 import { serializeAsJSON } from "@excalidraw/excalidraw/data/json";
 import { isInitializedImageElement } from "@excalidraw/element";
-import { useI18n } from "@excalidraw/excalidraw/i18n";
 
 import type {
   FileId,
@@ -95,27 +93,25 @@ export const ExportToExcalidrawPlus: React.FC<{
   onError: (error: Error) => void;
   onSuccess: () => void;
 }> = ({ elements, appState, files, name, onError, onSuccess }) => {
-  const { t } = useI18n();
+  const exportLabel = "Export to aimtutor.ai+";
   return (
     <Card color="primary">
       <div className="Card-icon">
-        <ExcalidrawLogo
-          style={{
-            [`--color-logo-icon` as any]: "#fff",
-            width: "2.8rem",
-            height: "2.8rem",
-          }}
+        <img
+          src="/aimtutor-logo.png"
+          alt="aimtutor.ai"
+          style={{ width: "2.8rem", height: "2.8rem", objectFit: "contain" }}
         />
       </div>
-      <h2>Excalidraw+</h2>
+      <h2>aimtutor.ai+</h2>
       <div className="Card-details">
-        {t("exportDialog.excalidrawplus_description")}
+        Save your scene to your aimtutor.ai+ workspace.
       </div>
       <ToolButton
         className="Card-button"
         type="button"
-        title={t("exportDialog.excalidrawplus_button")}
-        aria-label={t("exportDialog.excalidrawplus_button")}
+        title={exportLabel}
+        aria-label={exportLabel}
         showAriaLabel={true}
         onClick={async () => {
           try {
@@ -125,7 +121,7 @@ export const ExportToExcalidrawPlus: React.FC<{
           } catch (error: any) {
             console.error(error);
             if (error.name !== "AbortError") {
-              onError(new Error(t("exportDialog.excalidrawplus_exportError")));
+              onError(new Error("Unable to export to aimtutor.ai+ right now."));
             }
           }
         }}

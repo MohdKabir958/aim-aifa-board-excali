@@ -10,13 +10,13 @@ export const ExcalidrawPlusPromoBanner = ({
           ? import.meta.env.VITE_APP_PLUS_APP
           : `${
               import.meta.env.VITE_APP_PLUS_LP
-            }/plus?utm_source=excalidraw&utm_medium=app&utm_content=guestBanner#excalidraw-redirect`
+            }/plus?utm_source=aimtutor.ai&utm_medium=app&utm_content=guestBanner#aimtutorai-redirect`
       }
       target="_blank"
       rel="noopener"
       className="plus-banner"
     >
-      Excalidraw+
+      aimtutor.ai+
     </a>
   );
 };

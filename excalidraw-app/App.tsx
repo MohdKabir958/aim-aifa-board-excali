@@ -80,6 +80,8 @@ import type {
 import type { ResolutionType } from "@excalidraw/common/utility-types";
 import type { ResolvablePromise } from "@excalidraw/common/utils";
 
+import { isClerkEnabled, useAppAuth } from "./auth/AppAuth";
+
 import CustomStats from "./CustomStats";
 import {
   Provider,
@@ -90,7 +92,6 @@ import {
 } from "./app-jotai";
 import {
   FIREBASE_STORAGE_PREFIXES,
-  isExcalidrawPlusSignedUser,
   STORAGE_KEYS,
   SYNC_BROWSER_TABS_TIMEOUT,
 } from "./app_constants";
@@ -101,6 +102,10 @@ import Collab, {
 } from "./collab/Collab";
 import { AppFooter } from "./components/AppFooter";
 import { AppMainMenu } from "./components/AppMainMenu";
+import { ScreenRecorderBar } from "./components/ScreenRecorder/ScreenRecorderBar";
+import { ScreenRecorderModal } from "./components/ScreenRecorder/ScreenRecorderModal";
+import { ScreenRecorderWebcamBubble } from "./components/ScreenRecorder/ScreenRecorderWebcamBubble";
+import { AppTopBarAuth } from "./components/AppTopBarAuth";
 import { AppWelcomeScreen } from "./components/AppWelcomeScreen";
 import {
   ExportToExcalidrawPlus,
@@ -141,11 +146,11 @@ import DebugCanvas, {
   loadSavedDebugState,
 } from "./components/DebugCanvas";
 import { AIComponents } from "./components/AI";
+import { useScreenRecorder } from "./hooks/useScreenRecorder";
 import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
 
 import "./index.scss";
 
-import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
 import { AppSidebar } from "./components/AppSidebar";
 
 import type { CollabAPI } from "./collab/Collab";
@@ -373,6 +378,18 @@ const initializeScene = async (opts: {
 
 const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
+  const excalidrawAPIRef = useRef(excalidrawAPI);
+  excalidrawAPIRef.current = excalidrawAPI;
+
+  const screenRecorder = useScreenRecorder({
+    onSaved: () => {
+      excalidrawAPIRef.current?.setToast({
+        message: "Video saved — check your downloads folder.",
+      });
+    },
+  });
+
+  const { openSignIn, openSignUp, isSignedIn } = useAppAuth();
 
   const [errorMessage, setErrorMessage] = useState("");
   const isCollabDisabled = isRunningInIframe();
@@ -655,6 +672,14 @@ const ExcalidrawWrapper = () => {
       LocalData.flushSave();
 
       if (
+        screenRecorder.isRecording &&
+        import.meta.env.VITE_APP_DISABLE_PREVENT_UNLOAD !== "true"
+      ) {
+        preventUnload(event);
+        return;
+      }
+
+      if (
         excalidrawAPI &&
         LocalData.fileStorage.shouldPreventUnload(
           excalidrawAPI.getSceneElements(),
@@ -673,7 +698,7 @@ const ExcalidrawWrapper = () => {
     return () => {
       window.removeEventListener(EVENT.BEFORE_UNLOAD, unloadHandler);
     };
-  }, [excalidrawAPI]);
+  }, [excalidrawAPI, screenRecorder.isRecording]);
 
   const onChange = (
     elements: readonly OrderedExcalidrawElement[],
@@ -863,7 +888,7 @@ const ExcalidrawWrapper = () => {
   }
 
   const ExcalidrawPlusCommand = {
-    label: "Excalidraw+",
+    label: "aimtutor.ai+",
     category: DEFAULT_CATEGORIES.links,
     predicate: true,
     icon: <div style={{ width: 14 }}>{ExcalLogo}</div>,
@@ -872,18 +897,18 @@ const ExcalidrawWrapper = () => {
       window.open(
         `${
           import.meta.env.VITE_APP_PLUS_LP
-        }/plus?utm_source=excalidraw&utm_medium=app&utm_content=command_palette`,
+        }/plus?utm_source=aimtutor.ai&utm_medium=app&utm_content=command_palette`,
         "_blank",
       );
     },
   };
   const ExcalidrawPlusAppCommand = {
-    label: "Sign up",
+    label: isSignedIn ? "Account" : "Sign up",
     category: DEFAULT_CATEGORIES.links,
     predicate: true,
     icon: <div style={{ width: 14 }}>{ExcalLogo}</div>,
     keywords: [
-      "excalidraw",
+      "aimtutor.ai",
       "plus",
       "cloud",
       "server",
@@ -892,12 +917,16 @@ const ExcalidrawWrapper = () => {
       "signup",
     ],
     perform: () => {
-      window.open(
-        `${
-          import.meta.env.VITE_APP_PLUS_APP
-        }?utm_source=excalidraw&utm_medium=app&utm_content=command_palette`,
-        "_blank",
-      );
+      if (isSignedIn) {
+        window.open(
+          `${
+            import.meta.env.VITE_APP_PLUS_APP
+          }?utm_source=aimtutor.ai&utm_medium=app&utm_content=command_palette`,
+          "_blank",
+        );
+      } else {
+        openSignUp();
+      }
     },
   };
 
@@ -908,6 +937,14 @@ const ExcalidrawWrapper = () => {
         "is-collaborating": isCollaborating,
       })}
     >
+      <a
+        className="aimtutor-brand"
+        href="/"
+        aria-label="aimtutor.ai home"
+        title="aimtutor.ai"
+      >
+        <img src="/aimtutor-logo.png" alt="aimtutor.ai" />
+      </a>
       <Excalidraw
         onChange={onChange}
         onExport={onExport}
@@ -953,26 +990,29 @@ const ExcalidrawWrapper = () => {
         autoFocus={true}
         theme={editorTheme}
         renderTopRightUI={(isMobile) => {
-          if (isMobile || !collabAPI || isCollabDisabled) {
+          const showCollab = !isMobile && collabAPI && !isCollabDisabled;
+
+          if (!isClerkEnabled && !showCollab) {
             return null;
           }
 
           return (
-            <div className="excalidraw-ui-top-right">
-              {excalidrawAPI?.getEditorInterface().formFactor === "desktop" && (
-                <ExcalidrawPlusPromoBanner
-                  isSignedIn={isExcalidrawPlusSignedUser}
-                />
-              )}
-
-              {collabError.message && <CollabError collabError={collabError} />}
-              <LiveCollaborationTrigger
-                isCollaborating={isCollaborating}
-                onSelect={() =>
-                  setShareDialogState({ isOpen: true, type: "share" })
-                }
-                editorInterface={editorInterface}
-              />
+            <div className="excalidraw-ui-top-right excalidraw-ui-top-right--aimtutor">
+              {isClerkEnabled ? <AppTopBarAuth /> : null}
+              {showCollab ? (
+                <>
+                  {collabError.message && (
+                    <CollabError collabError={collabError} />
+                  )}
+                  <LiveCollaborationTrigger
+                    isCollaborating={isCollaborating}
+                    onSelect={() =>
+                      setShareDialogState({ isOpen: true, type: "share" })
+                    }
+                    editorInterface={editorInterface}
+                  />
+                </>
+              ) : null}
             </div>
           );
         }}
@@ -985,12 +1025,16 @@ const ExcalidrawWrapper = () => {
       >
         <AppMainMenu
           onCollabDialogOpen={onCollabDialogOpen}
+          onOpenScreenRecorder={screenRecorder.openModal}
           isCollaborating={isCollaborating}
           isCollabEnabled={!isCollabDisabled}
           theme={appTheme}
           setTheme={(theme) => setAppTheme(theme)}
           refresh={() => forceRefresh((prev) => !prev)}
         />
+        <ScreenRecorderModal api={screenRecorder} theme={editorTheme} />
+        <ScreenRecorderWebcamBubble stream={screenRecorder.webcamStream} />
+        <ScreenRecorderBar api={screenRecorder} />
         <AppWelcomeScreen
           onCollabDialogOpen={onCollabDialogOpen}
           isCollabEnabled={!isCollabDisabled}
@@ -1000,8 +1044,8 @@ const ExcalidrawWrapper = () => {
           <OverwriteConfirmDialog.Actions.SaveToDisk />
           {excalidrawAPI && (
             <OverwriteConfirmDialog.Action
-              title={t("overwriteConfirm.action.excalidrawPlus.title")}
-              actionLabel={t("overwriteConfirm.action.excalidrawPlus.button")}
+              title="Export to aimtutor.ai+"
+              actionLabel="Export to aimtutor.ai+"
               onClick={() => {
                 exportToExcalidrawPlus(
                   excalidrawAPI.getSceneElements(),
@@ -1011,7 +1055,7 @@ const ExcalidrawWrapper = () => {
                 );
               }}
             >
-              {t("overwriteConfirm.action.excalidrawPlus.description")}
+              Save this drawing in your aimtutor.ai+ workspace.
             </OverwriteConfirmDialog.Action>
           )}
         </OverwriteConfirmDialog>
@@ -1144,7 +1188,7 @@ const ExcalidrawWrapper = () => {
               ],
               perform: () => {
                 window.open(
-                  "https://github.com/excalidraw/excalidraw",
+                  "https://github.com/aifalabsglobal/aifaboard",
                   "_blank",
                   "noopener noreferrer",
                 );
@@ -1158,7 +1202,7 @@ const ExcalidrawWrapper = () => {
               keywords: ["twitter", "contact", "social", "community"],
               perform: () => {
                 window.open(
-                  "https://x.com/excalidraw",
+                  "https://aimtutor.ai",
                   "_blank",
                   "noopener noreferrer",
                 );
@@ -1197,23 +1241,33 @@ const ExcalidrawWrapper = () => {
               keywords: ["features", "tutorials", "howto", "help", "community"],
               perform: () => {
                 window.open(
-                  "https://youtube.com/@excalidraw",
+                  "https://aimtutor.ai",
                   "_blank",
                   "noopener noreferrer",
                 );
               },
             },
-            ...(isExcalidrawPlusSignedUser
-              ? [
-                  {
-                    ...ExcalidrawPlusAppCommand,
-                    label: "Sign in / Go to Excalidraw+",
-                  },
-                ]
-              : [ExcalidrawPlusCommand, ExcalidrawPlusAppCommand]),
+            ...(isClerkEnabled
+              ? isSignedIn
+                ? [
+                    {
+                      ...ExcalidrawPlusAppCommand,
+                      label: "Go to aimtutor.ai+",
+                    },
+                  ]
+                : [ExcalidrawPlusCommand, ExcalidrawPlusAppCommand]
+              : [ExcalidrawPlusCommand]),
+            {
+              label: "Sign in",
+              category: DEFAULT_CATEGORIES.app,
+              predicate: isClerkEnabled && !isSignedIn,
+              icon: usersIcon,
+              keywords: ["signin", "login", "auth"],
+              perform: () => openSignIn(),
+            },
 
             {
-              label: t("overwriteConfirm.action.excalidrawPlus.button"),
+              label: "Export to aimtutor.ai+",
               category: DEFAULT_CATEGORIES.export,
               icon: exportToPlus,
               predicate: true,

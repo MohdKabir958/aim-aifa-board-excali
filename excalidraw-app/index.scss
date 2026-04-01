@@ -86,6 +86,114 @@
   }
 }
 
+.excalidraw-app {
+  position: relative;
+}
+
+.aimtutor-brand {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: var(--zIndex-layerUI);
+  display: inline-flex;
+  align-items: center;
+  pointer-events: auto;
+  text-decoration: none;
+
+  img {
+    display: block;
+    height: 34px;
+    width: auto;
+  }
+}
+
+/* Clerk controls: rendered inside Excalidraw `renderTopRightUI` (z-index above canvas). */
+.aimtutor-auth {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: auto;
+}
+
+.aimtutor-auth--docked {
+  max-width: min(260px, 42vw);
+}
+
+.aimtutor-auth--loading {
+  min-height: 28px;
+  min-width: 72px;
+}
+
+.aimtutor-auth__btn {
+  font-family: var(--ui-font, system-ui, sans-serif);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--border-radius-md, 0.375rem);
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  background: rgba(255, 255, 255, 0.92);
+  color: #1a1a1a;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+
+  &:hover {
+    background: #fff;
+  }
+
+  &:active {
+    transform: translateY(1px);
+  }
+}
+
+.aimtutor-auth__btn--primary {
+  border-color: var(--color-primary, #6965db);
+  background: var(--color-primary, #6965db);
+  color: #fff;
+
+  &:hover {
+    filter: brightness(1.05);
+  }
+}
+
+html.dark .aimtutor-auth__btn:not(.aimtutor-auth__btn--primary),
+.excalidraw-app:has(.excalidraw.theme--dark)
+  .aimtutor-auth__btn:not(.aimtutor-auth__btn--primary) {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(40, 40, 40, 0.92);
+  color: #f3f3f3;
+
+  &:hover {
+    background: rgba(55, 55, 55, 0.95);
+  }
+}
+
+html.dark .aimtutor-auth__btn--primary,
+.excalidraw-app:has(.excalidraw.theme--dark) .aimtutor-auth__btn--primary {
+  color: #fff;
+}
+
+.theme--dark .aimtutor-brand img {
+  filter: brightness(1.03);
+}
+
+@media (max-width: 768px) {
+  .aimtutor-brand img {
+    height: 30px;
+  }
+
+  .aimtutor-auth--docked {
+    max-width: min(220px, 55vw);
+  }
+
+  .aimtutor-auth__btn {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.55rem;
+  }
+}
+
 .plus-banner {
   display: flex;
   justify-content: center;
