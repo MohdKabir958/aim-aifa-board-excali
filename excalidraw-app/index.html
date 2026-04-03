@@ -9,7 +9,7 @@
     />
     <meta name="referrer" content="origin" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="theme-color" content="#121212" />
+    <meta id="aimtutor-theme-color" name="theme-color" content="#f9f8e2" />
 
     <!-- Primary Meta Tags -->
     <meta
@@ -73,6 +73,13 @@
           } else {
             document.documentElement.classList.remove("dark");
           }
+          var meta = document.getElementById("aimtutor-theme-color");
+          if (meta) {
+            meta.setAttribute(
+              "content",
+              theme === "dark" ? "#15130f" : "#f9f8e2",
+            );
+          }
         }
 
         function getTheme() {
@@ -93,8 +100,18 @@
       }
     </script>
     <style>
-      html.dark {
-        background-color: #121212;
+      /* AimTutor “classroom” surround: cream light, warm charcoal dark */
+      html:not(.dark),
+      html:not(.dark) body,
+      html:not(.dark) #root {
+        background-color: #f9f8e2;
+        color: #1a1a1a;
+      }
+
+      html.dark,
+      html.dark body,
+      html.dark #root {
+        background-color: #15130f;
         color: #fff;
       }
     </style>

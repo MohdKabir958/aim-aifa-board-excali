@@ -54,6 +54,7 @@ import ElementLinkDialog from "./ElementLinkDialog";
 import { ErrorDialog } from "./ErrorDialog";
 import { EyeDropper, activeEyeDropperAtom } from "./EyeDropper";
 import { FixedSideContainer } from "./FixedSideContainer";
+import { FloatingDesktopToolbar } from "./FloatingDesktopToolbar";
 import { HelpDialog } from "./HelpDialog";
 import { HintViewer } from "./HintViewer";
 import { ImageExportDialog } from "./ImageExportDialog";
@@ -315,81 +316,97 @@ const LayerUI = ({
           </Stack.Col>
           {!appState.viewModeEnabled &&
             appState.openDialog?.name !== "elementLinkSelector" && (
-              <Section heading="shapes" className="shapes-section">
-                {(heading: React.ReactNode) => (
-                  <div style={{ position: "relative" }}>
-                    {renderWelcomeScreen && (
-                      <tunnels.WelcomeScreenToolbarHintTunnel.Out />
-                    )}
-                    <Stack.Col gap={spacing.toolbarColGap} align="start">
-                      <Stack.Row
-                        gap={spacing.toolbarRowGap}
-                        className={clsx("App-toolbar-container", {
-                          "zen-mode": appState.zenModeEnabled,
-                        })}
-                      >
-                        <Island
-                          padding={spacing.islandPadding}
-                          className={clsx("App-toolbar", {
-                            "zen-mode": appState.zenModeEnabled,
-                            "App-toolbar--compact": isCompactStylesPanel,
-                          })}
-                        >
-                          <HintViewer
-                            appState={appState}
-                            isMobile={editorInterface.formFactor === "phone"}
-                            editorInterface={editorInterface}
-                            app={app}
-                          />
-                          {heading}
-                          <Stack.Row gap={spacing.toolbarInnerRowGap}>
-                            <PenModeButton
-                              zenModeEnabled={appState.zenModeEnabled}
-                              checked={appState.penMode}
-                              onChange={() => onPenModeToggle(null)}
-                              title={t("toolBar.penMode")}
-                              penDetected={appState.penDetected}
-                            />
-                            <LockButton
-                              checked={appState.activeTool.locked}
-                              onChange={onLockToggle}
-                              title={t("toolBar.lock")}
-                            />
-
-                            <div className="App-toolbar__divider" />
-
-                            <ShapesSwitcher
-                              setAppState={setAppState}
-                              activeTool={appState.activeTool}
-                              UIOptions={UIOptions}
-                              app={app}
-                            />
-                          </Stack.Row>
-                        </Island>
-                        {isCollaborating && (
-                          <Island
-                            style={{
-                              marginLeft: spacing.collabMarginLeft,
-                              alignSelf: "center",
-                              height: "fit-content",
-                            }}
-                          >
-                            <LaserPointerButton
-                              title={t("toolBar.laser")}
-                              checked={
-                                appState.activeTool.type === TOOL_TYPE.laser
-                              }
-                              onChange={() =>
-                                app.setActiveTool({ type: TOOL_TYPE.laser })
-                              }
-                              isMobile
-                            />
-                          </Island>
-                        )}
-                      </Stack.Row>
-                    </Stack.Col>
-                  </div>
+              <Section
+                heading="shapes"
+                className={clsx(
+                  "shapes-section",
+                  "shapes-section--floating-anchor",
                 )}
+              >
+                {(heading: React.ReactNode) => {
+                  return (
+                    <FloatingDesktopToolbar
+                      zenModeEnabled={appState.zenModeEnabled}
+                    >
+                      <div style={{ position: "relative" }}>
+                        {renderWelcomeScreen && (
+                          <tunnels.WelcomeScreenToolbarHintTunnel.Out />
+                        )}
+                        <Stack.Col gap={spacing.toolbarColGap} align="start">
+                          <Stack.Row
+                            gap={spacing.toolbarRowGap}
+                            className={clsx("App-toolbar-container", {
+                              "zen-mode": appState.zenModeEnabled,
+                            })}
+                          >
+                            <Island
+                              padding={spacing.islandPadding}
+                              className={clsx("App-toolbar", {
+                                "zen-mode": appState.zenModeEnabled,
+                                "App-toolbar--compact": isCompactStylesPanel,
+                              })}
+                            >
+                              <HintViewer
+                                appState={appState}
+                                isMobile={
+                                  editorInterface.formFactor === "phone"
+                                }
+                                editorInterface={editorInterface}
+                                app={app}
+                              />
+                              {heading}
+                              <Stack.Row gap={spacing.toolbarInnerRowGap}>
+                                <PenModeButton
+                                  zenModeEnabled={appState.zenModeEnabled}
+                                  checked={appState.penMode}
+                                  onChange={() => onPenModeToggle(null)}
+                                  title={t("toolBar.penMode")}
+                                  penDetected={appState.penDetected}
+                                />
+                                <LockButton
+                                  checked={appState.activeTool.locked}
+                                  onChange={onLockToggle}
+                                  title={t("toolBar.lock")}
+                                />
+
+                                <div className="App-toolbar__divider" />
+
+                                <ShapesSwitcher
+                                  setAppState={setAppState}
+                                  activeTool={appState.activeTool}
+                                  UIOptions={UIOptions}
+                                  app={app}
+                                />
+                              </Stack.Row>
+                            </Island>
+                            {isCollaborating && (
+                              <Island
+                                style={{
+                                  marginLeft: spacing.collabMarginLeft,
+                                  alignSelf: "center",
+                                  height: "fit-content",
+                                }}
+                              >
+                                <LaserPointerButton
+                                  title={t("toolBar.laser")}
+                                  checked={
+                                    appState.activeTool.type === TOOL_TYPE.laser
+                                  }
+                                  onChange={() =>
+                                    app.setActiveTool({
+                                      type: TOOL_TYPE.laser,
+                                    })
+                                  }
+                                  isMobile
+                                />
+                              </Island>
+                            )}
+                          </Stack.Row>
+                        </Stack.Col>
+                      </div>
+                    </FloatingDesktopToolbar>
+                  );
+                }}
               </Section>
             )}
           <div

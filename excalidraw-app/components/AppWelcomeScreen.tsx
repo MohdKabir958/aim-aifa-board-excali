@@ -1,10 +1,12 @@
-import { loginIcon } from "@excalidraw/excalidraw/components/icons";
-import { POINTER_EVENTS } from "@excalidraw/common";
-import { useI18n } from "@excalidraw/excalidraw/i18n";
-import { WelcomeScreen } from "@excalidraw/excalidraw/index";
 import React from "react";
 
+import { POINTER_EVENTS } from "@excalidraw/common";
+import { loginIcon } from "@excalidraw/excalidraw/components/icons";
+import { WelcomeScreen } from "@excalidraw/excalidraw/index";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
+
 import { isClerkEnabled, useAppAuth } from "../auth/AppAuth";
+
 import { AimtutorWordmark } from "./AimtutorWordmark";
 
 export const AppWelcomeScreen: React.FC<{

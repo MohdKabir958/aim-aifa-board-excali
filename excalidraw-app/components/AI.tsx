@@ -14,6 +14,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 import { isClerkEnabled, useAppAuth } from "../auth/AppAuth";
 
+import { buildDiagramCanvasContext } from "../data/buildDiagramCanvasContext";
 import { TTDIndexedDBAdapter } from "../data/TTDStorage";
 
 export const AIComponents = ({
@@ -44,6 +45,11 @@ export const AIComponents = ({
           const dataURL = await getDataURL(blob);
 
           const textFromFrameChildren = getTextFromElements(children);
+          const canvasContext = buildDiagramCanvasContext(
+            frame,
+            children,
+            appState,
+          );
           const token = await getToken();
 
           const response = await fetch(
@@ -61,6 +67,7 @@ export const AIComponents = ({
                 texts: textFromFrameChildren,
                 image: dataURL,
                 theme: appState.theme,
+                canvasContext,
               }),
             },
           );

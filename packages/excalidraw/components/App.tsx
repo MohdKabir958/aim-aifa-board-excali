@@ -2528,7 +2528,13 @@ class App extends React.Component<AppProps, AppState> {
 
     if (!magicFrameChildren.length) {
       if (source === "button") {
-        this.setState({ errorMessage: "Cannot generate from an empty frame" });
+        this.setState({
+          toast: {
+            message: t("toast.magicFrameEmpty"),
+            duration: 4500,
+            closable: true,
+          },
+        });
         trackEvent("ai", "generate (no-children)", "d2c");
       } else {
         this.setActiveTool({ type: "magicframe" });

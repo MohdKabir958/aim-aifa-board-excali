@@ -45,9 +45,15 @@ function downloadBlob(blob: Blob) {
 
 export function useScreenRecorder(options?: {
   onSaved?: (blob: Blob) => void;
+  onRecordingStarted?: () => void;
+  onRecordingFinished?: (info: { byteLength: number; mimeType: string }) => void;
 }) {
   const onSavedRef = useRef(options?.onSaved);
   onSavedRef.current = options?.onSaved;
+  const onRecordingStartedRef = useRef(options?.onRecordingStarted);
+  onRecordingStartedRef.current = options?.onRecordingStarted;
+  const onRecordingFinishedRef = useRef(options?.onRecordingFinished);
+  onRecordingFinishedRef.current = options?.onRecordingFinished;
 
   const [modalOpen, setModalOpen] = useState(false);
   const [includeMic, setIncludeMic] = useState(true);

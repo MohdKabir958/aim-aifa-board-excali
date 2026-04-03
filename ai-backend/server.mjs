@@ -208,6 +208,63 @@ async function ensureSchema() {
   await pool.query(`
     ALTER TABLE users ADD COLUMN IF NOT EXISTS last_api_at TIMESTAMPTZ;
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_activity_events (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      clerk_user_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      category TEXT,
+      metadata JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_user_activity_user_id ON user_activity_events (user_id);
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_user_activity_clerk_user_id ON user_activity_events (clerk_user_id);
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_user_activity_created_at ON user_activity_events (created_at DESC);
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_user_activity_action ON user_activity_events (action);
+  `);
+}
+
+function parseActivityEvents(body) {
+  const raw = body?.events;
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > 50) {
+    return null;
+  }
+  const out = [];
+  for (const e of raw) {
+    if (!e || typeof e !== "object" || Array.isArray(e)) {
+      return null;
+    }
+    const action =
+      typeof e.action === "string" ? e.action.trim().slice(0, 200) : "";
+    if (!action) {
+      return null;
+    }
+    const category =
+      typeof e.category === "string" ? e.category.trim().slice(0, 100) : null;
+    let metadataJson = null;
+    if (e.metadata != null) {
+      if (typeof e.metadata !== "object" || Array.isArray(e.metadata)) {
+        return null;
+      }
+      try {
+        const s = JSON.stringify(e.metadata);
+        metadataJson = s.length > 12_000 ? JSON.stringify({ _truncated: true }) : s;
+      } catch {
+        return null;
+      }
+    }
+    out.push({ action, category, metadataJson });
+  }
+  return out.length ? out : null;
 }
 
 /** One row per completed /v1/* response: user, route, timing, status, optional AI metadata. */
@@ -418,6 +475,53 @@ app.get(
 );
 
 app.post(
+  "/v1/activity",
+  asyncRoute(async (req, res) => {
+    if (!requireDatabase(res)) {
+      return;
+    }
+    const auth = requireAuthApi(req, res);
+    if (!auth) {
+      return;
+    }
+    const events = parseActivityEvents(req.body);
+    if (!events) {
+      res.locals.auditError = "body.events must be a non-empty array (max 50)";
+      res.status(400).json({
+        message:
+          "body.events must be a non-empty array of { action, category?, metadata? }",
+      });
+      return;
+    }
+    const localUserId = await upsertUserFromAuth(auth);
+    const placeholders = [];
+    const params = [];
+    let n = 1;
+    for (const ev of events) {
+      placeholders.push(
+        `($${n++}, $${n++}, $${n++}, $${n++}, $${n++}::jsonb)`,
+      );
+      params.push(
+        localUserId,
+        auth.userId,
+        ev.action,
+        ev.category,
+        ev.metadataJson,
+      );
+    }
+    await pool.query(
+      `INSERT INTO user_activity_events (user_id, clerk_user_id, action, category, metadata) VALUES ${placeholders.join(", ")}`,
+      params,
+    );
+    res.locals.auditDetails = {
+      kind: "user_activity",
+      count: events.length,
+    };
+    res.status(204).end();
+  }),
+);
+
+app.post(
   "/v1/ai/text-to-diagram/chat-streaming",
   asyncRoute(async (req, res) => {
     if (!requireApiKey(res)) {
@@ -530,11 +634,23 @@ app.post(
     }
     const localUserId = await upsertUserFromAuth(auth);
 
-    const { texts, image, theme } = req.body ?? {};
+    const { texts, image, theme, canvasContext } = req.body ?? {};
     const textBlock = Array.isArray(texts)
       ? texts.filter(Boolean).join("\n")
       : "";
     const imageUrl = typeof image === "string" ? image : "";
+
+    let canvasContextBlock = "";
+    if (canvasContext != null && typeof canvasContext === "object") {
+      try {
+        canvasContextBlock =
+          "Structured canvas context (use with the image; approximate frame size and shape mix):\n" +
+          JSON.stringify(canvasContext, null, 2) +
+          "\n\n";
+      } catch {
+        canvasContextBlock = "";
+      }
+    }
 
     if (!imageUrl) {
       res.locals.auditError = "missing image in body";
@@ -559,8 +675,11 @@ app.post(
               {
                 type: "text",
                 text:
-                  textBlock ||
-                  "Turn this whiteboard frame export into a clean HTML preview.",
+                  canvasContextBlock +
+                  (textBlock
+                    ? `Text extracted from shapes inside the frame:\n${textBlock}`
+                    : "No separate text was extracted from shapes; rely on the image and canvas context.") +
+                  "\n\nTurn this into a single self-contained HTML preview that matches the wireframe.",
               },
               { type: "image_url", image_url: { url: imageUrl } },
             ],
@@ -590,6 +709,7 @@ app.post(
         completionTokens: completion.usage?.completion_tokens ?? null,
         theme: theme ?? null,
         textLength: textBlock.length,
+        canvasContext: canvasContext != null ? true : false,
       };
       res.json({ html });
     } catch (err) {
@@ -628,6 +748,7 @@ ensureSchema()
         `[aimtutor-ai] ${isProduction ? "production" : "development"} http://${LISTEN_HOST}:${PORT}`,
       );
       console.log(`  GET  /v1/auth/me`);
+      console.log(`  POST /v1/activity`);
       console.log(`  POST /v1/ai/text-to-diagram/chat-streaming`);
       console.log(`  POST /v1/ai/diagram-to-code/generate`);
     });

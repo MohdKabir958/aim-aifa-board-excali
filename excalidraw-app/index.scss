@@ -1,5 +1,11 @@
 @import "../packages/excalidraw/css/variables.module.scss";
 
+/* Global brand: soft cream “desk” (light) / warm charcoal (dark); no visible frame. */
+:root {
+  --aimtutor-page-bg: #f9f8e2;
+  --aimtutor-page-bg-dark: #15130f;
+}
+
 .excalidraw {
   --color-primary-contrast-offset: #625ee0; // to offset Chubb illusion
 
@@ -88,6 +94,47 @@
 
 .excalidraw-app {
   position: relative;
+  box-sizing: border-box;
+  background: var(--aimtutor-page-bg);
+  min-height: 100%;
+}
+
+html.dark .excalidraw-app,
+.excalidraw-app:has(.excalidraw.theme--dark) {
+  background: var(--aimtutor-page-bg-dark);
+}
+
+/* App UI font aligned with wordmark */
+.excalidraw-app .excalidraw {
+  --ui-font:
+    "Plus Jakarta Sans", Assistant, system-ui, BlinkMacSystemFont, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Light: warm paper-like chrome, crisp canvas */
+.excalidraw-app .excalidraw:not(.theme--dark) {
+  --default-bg-color: #ffffff;
+  --island-bg-color: #fffef8;
+  --island-bg-color-alt: #fffef8;
+  --input-bg-color: #fffef8;
+  --color-surface-high: #f3f0e4;
+  --color-surface-mid: #efeae0;
+  --color-surface-low: #e8e2d4;
+  --color-surface-lowest: #fffef8;
+  --overlay-bg-color: rgba(249, 248, 226, 0.52);
+}
+
+/* Dark: warm charcoal UI on deep board */
+.excalidraw-app .excalidraw.theme--dark {
+  --default-bg-color: #121210;
+  --island-bg-color: #25231e;
+  --island-bg-color-alt: #1c1b18;
+  --input-bg-color: #1c1b18;
+  --input-hover-bg-color: #25231e;
+  --color-surface-high: #2e2c26;
+  --color-surface-mid: #25231e;
+  --color-surface-low: #1f1d19;
+  --color-surface-lowest: #2a2823;
 }
 
 /* Sits beside Excalidraw’s main menu (not under it): matches FixedSideContainer

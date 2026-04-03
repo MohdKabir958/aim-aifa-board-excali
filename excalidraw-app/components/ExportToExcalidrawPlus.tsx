@@ -24,9 +24,10 @@ import type {
 } from "@excalidraw/excalidraw/types";
 
 import { FILE_UPLOAD_MAX_BYTES } from "../app_constants";
-import { AimtutorWordmark } from "./AimtutorWordmark";
 import { encodeFilesForUpload } from "../data/FileManager";
 import { loadFirebaseStorage, saveFilesToFirebase } from "../data/firebase";
+
+import { AimtutorWordmark } from "./AimtutorWordmark";
 
 export const exportToExcalidrawPlus = async (
   elements: readonly NonDeletedExcalidrawElement[],

@@ -1,0 +1,339 @@
+.excalidraw {
+  @keyframes floating-toolbar-capsule-glow {
+    0%,
+    100% {
+      box-shadow:
+        var(--shadow-island-stronger),
+        0 0 0 1px color-mix(in srgb, var(--color-primary) 22%, transparent),
+        0 4px 22px color-mix(in srgb, var(--color-primary) 28%, transparent),
+        0 0 36px color-mix(in srgb, var(--color-primary) 14%, transparent),
+        0 0 72px color-mix(in srgb, var(--color-primary) 6%, transparent);
+    }
+
+    50% {
+      box-shadow:
+        var(--shadow-island-stronger),
+        0 0 0 1px color-mix(in srgb, var(--color-primary) 38%, transparent),
+        0 8px 32px color-mix(in srgb, var(--color-primary) 42%, transparent),
+        0 0 52px color-mix(in srgb, var(--color-primary) 26%, transparent),
+        0 0 96px color-mix(in srgb, var(--color-primary) 12%, transparent);
+    }
+  }
+
+  @keyframes floating-toolbar-chrome-dot-glow {
+    0%,
+    100% {
+      box-shadow:
+        var(--shadow-island),
+        0 0 0 1px color-mix(in srgb, var(--color-primary) 18%, transparent),
+        0 2px 16px color-mix(in srgb, var(--color-primary) 35%, transparent),
+        0 0 28px color-mix(in srgb, var(--color-primary) 20%, transparent);
+    }
+
+    50% {
+      box-shadow:
+        var(--shadow-island),
+        0 0 0 1px color-mix(in srgb, var(--color-primary) 30%, transparent),
+        0 4px 22px color-mix(in srgb, var(--color-primary) 48%, transparent),
+        0 0 40px color-mix(in srgb, var(--color-primary) 28%, transparent);
+    }
+  }
+
+  @keyframes floating-toolbar-pebble-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+      filter: brightness(1);
+    }
+
+    50% {
+      transform: scale(1.08);
+      opacity: 0.92;
+      filter: brightness(1.12);
+    }
+  }
+
+  /* Softer pulse on expanded grip + toolbar islands (slower than collapsed ball). */
+  @keyframes floating-toolbar-row-glow-pulse {
+    0%,
+    100% {
+      box-shadow:
+        var(--shadow-island),
+        0 0 0 1px color-mix(in srgb, var(--color-primary) 12%, transparent),
+        0 6px 26px color-mix(in srgb, var(--color-primary) 18%, transparent),
+        0 0 44px color-mix(in srgb, var(--color-primary) 9%, transparent),
+        0 0 80px color-mix(in srgb, var(--color-primary) 5%, transparent);
+    }
+
+    50% {
+      box-shadow:
+        var(--shadow-island),
+        0 0 0 1px color-mix(in srgb, var(--color-primary) 18%, transparent),
+        0 7px 30px color-mix(in srgb, var(--color-primary) 24%, transparent),
+        0 0 52px color-mix(in srgb, var(--color-primary) 13%, transparent),
+        0 0 92px color-mix(in srgb, var(--color-primary) 7%, transparent);
+    }
+  }
+
+  /* Grid middle column stays minimal; toolbar is viewport-fixed. */
+  .shapes-section--floating-anchor {
+    width: 0;
+    max-width: 0;
+    min-width: 0;
+    overflow: visible;
+    justify-self: center;
+    align-self: start;
+    pointer-events: none !important;
+
+    & > * {
+      pointer-events: auto;
+    }
+  }
+
+  .floating-desktop-toolbar {
+    position: fixed;
+    z-index: calc(var(--zIndex-layerUI) + 1);
+    pointer-events: none;
+    max-width: calc(100vw - 16px);
+    opacity: 1;
+    transition: opacity 0.5s ease-in-out;
+
+    &--zen {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    @media print {
+      display: none !important;
+    }
+
+    &__inner {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      gap: calc(2 * var(--space-factor));
+      pointer-events: none;
+
+      :root[dir="rtl"] & {
+        flex-direction: row-reverse;
+      }
+
+      & > * {
+        pointer-events: var(--ui-pointerEvents);
+      }
+
+      /* Main toolbar + collab islands (not the grip chrome — it has its own rules). */
+      .Island:not(.floating-desktop-toolbar__chrome) {
+        border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+        animation: floating-toolbar-row-glow-pulse 4.5s ease-in-out infinite;
+        transition: border-color 0.45s ease;
+
+        &:hover {
+          animation: none;
+          border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+          box-shadow:
+            var(--shadow-island),
+            0 0 0 1px color-mix(in srgb, var(--color-primary) 22%, transparent),
+            0 10px 34px color-mix(in srgb, var(--color-primary) 26%, transparent),
+            0 0 56px color-mix(in srgb, var(--color-primary) 16%, transparent),
+            0 0 100px color-mix(in srgb, var(--color-primary) 8%, transparent);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          animation: none;
+          box-shadow:
+            var(--shadow-island),
+            0 0 0 1px color-mix(in srgb, var(--color-primary) 12%, transparent),
+            0 6px 26px color-mix(in srgb, var(--color-primary) 18%, transparent),
+            0 0 44px color-mix(in srgb, var(--color-primary) 9%, transparent),
+            0 0 80px color-mix(in srgb, var(--color-primary) 5%, transparent);
+        }
+      }
+    }
+
+    &__chrome {
+      flex-shrink: 0;
+      position: relative;
+      box-sizing: border-box;
+      width: 3rem;
+      height: 3rem;
+      min-width: 3rem;
+      min-height: 3rem;
+      padding: 0 !important;
+      border-radius: 50%;
+      border: 1px solid color-mix(in srgb, var(--color-primary) 22%, transparent);
+      animation: floating-toolbar-chrome-dot-glow 2.6s ease-in-out infinite;
+      transition:
+        width 0.22s ease,
+        height 0.22s ease,
+        min-width 0.22s ease,
+        min-height 0.22s ease,
+        border-radius 0.25s ease,
+        border-color 0.25s ease;
+
+      &:hover,
+      &:focus-within {
+        width: auto;
+        height: auto;
+        min-width: unset;
+        min-height: unset;
+        padding: calc(1 * var(--space-factor)) !important;
+        border-radius: var(--border-radius-lg);
+        animation: floating-toolbar-row-glow-pulse 4.5s ease-in-out infinite;
+
+        .floating-desktop-toolbar__chrome-hit {
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        .floating-desktop-toolbar__chrome-menu {
+          position: relative;
+          opacity: 1;
+          pointer-events: auto;
+        }
+      }
+
+      @media (hover: none), (pointer: coarse) {
+        width: auto;
+        height: auto;
+        min-width: unset;
+        min-height: unset;
+        padding: calc(1 * var(--space-factor)) !important;
+        border-radius: var(--border-radius-lg);
+        animation: floating-toolbar-row-glow-pulse 4.5s ease-in-out infinite;
+
+        .floating-desktop-toolbar__chrome-hit {
+          display: none;
+        }
+
+        .floating-desktop-toolbar__chrome-menu {
+          position: relative;
+          opacity: 1;
+          pointer-events: auto;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        animation: none;
+        box-shadow:
+          var(--shadow-island),
+          0 0 0 1px color-mix(in srgb, var(--color-primary) 16%, transparent),
+          0 4px 20px color-mix(in srgb, var(--color-primary) 28%, transparent),
+          0 0 32px color-mix(in srgb, var(--color-primary) 14%, transparent);
+
+        &:hover,
+        &:focus-within {
+          animation: none;
+        }
+      }
+    }
+
+    &__chrome-hit {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: transparent;
+      cursor: grab;
+      color: inherit;
+      transition: opacity 0.18s ease;
+
+      &:active {
+        cursor: grabbing;
+      }
+    }
+
+    &__chrome-pebble {
+      display: block;
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--color-primary);
+      box-shadow:
+        0 0 6px color-mix(in srgb, var(--color-primary) 70%, transparent),
+        0 0 14px color-mix(in srgb, var(--color-primary) 45%, transparent),
+        0 0 24px color-mix(in srgb, var(--color-primary) 25%, transparent);
+      animation: floating-toolbar-pebble-pulse 2.2s ease-in-out infinite;
+
+      @media (prefers-reduced-motion: reduce) {
+        animation: none;
+      }
+    }
+
+    &__chrome-menu {
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: 1;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    &__ball {
+      pointer-events: var(--ui-pointerEvents);
+      border-radius: 9999px;
+      border: 1px solid color-mix(in srgb, var(--color-primary) 32%, transparent);
+      animation: floating-toolbar-capsule-glow 2.8s ease-in-out infinite;
+
+      @media (prefers-reduced-motion: reduce) {
+        animation: none;
+        box-shadow:
+          var(--shadow-island-stronger),
+          0 0 0 1px color-mix(in srgb, var(--color-primary) 28%, transparent),
+          0 6px 28px color-mix(in srgb, var(--color-primary) 32%, transparent),
+          0 0 48px color-mix(in srgb, var(--color-primary) 18%, transparent),
+          0 0 88px color-mix(in srgb, var(--color-primary) 9%, transparent);
+      }
+    }
+
+    &__icon-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: var(--lg-button-size);
+      height: var(--lg-button-size);
+      padding: 0;
+      border: none;
+      border-radius: var(--border-radius-lg);
+      background: transparent;
+      color: var(--icon-fill-color);
+      cursor: pointer;
+
+      svg {
+        width: var(--lg-icon-size);
+        height: var(--lg-icon-size);
+      }
+
+      &:hover {
+        background-color: var(--button-hover-bg);
+      }
+
+      &:active {
+        background-color: var(--button-hover-bg);
+        box-shadow: 0 0 0 1px
+          var(--button-active-border, var(--color-primary-darkest)) inset;
+      }
+    }
+
+    &__expand svg {
+      width: 1.125rem;
+      height: 1.125rem;
+    }
+  }
+
+  &.theme--dark {
+    .floating-desktop-toolbar__inner .Island,
+    .floating-desktop-toolbar__chrome,
+    .floating-desktop-toolbar__ball {
+      border-color: color-mix(in srgb, var(--color-primary) 32%, transparent);
+    }
+  }
+}
