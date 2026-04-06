@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { AimtutorWordmark } from "../components/AimtutorWordmark";
+import { useUser } from "@clerk/clerk-react";
 import { isClerkEnabled, useAppAuth } from "../auth/AppAuth";
 import {
   createBoard,
@@ -178,6 +179,14 @@ function getInitials(name: string | null | undefined) {
 // ── Main Component ─────────────────────────────────────────────────────────────
 export function DashboardPage() {
   const { isLoaded, isSignedIn, openSignIn, getToken } = useAppAuth();
+  const { user: clerkUser } = useUser();
+  // Best-effort display name from Clerk (used as author fallback)
+  const currentUserName =
+    clerkUser?.fullName ||
+    [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(" ") ||
+    clerkUser?.username ||
+    clerkUser?.primaryEmailAddress?.emailAddress ||
+    null;
   const { isDark, toggle: toggleTheme } = useThemeSync();
   const navigate = useNavigate();
 
@@ -187,10 +196,17 @@ export function DashboardPage() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [boards, setBoards] = useState<ApiBoardListItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newFolderName, setNewFolderName] = useState("");
-  const [newBoardTitle, setNewBoardTitle] = useState("");
+  const [newFolderName, setNewFolderName] = useState(""); // kept for compat, unused by modal
   const [search, setSearch] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Modal state (new board)
+  const [showNewBoardModal, setShowNewBoardModal] = useState(false);
+  const [modalBoardTitle, setModalBoardTitle] = useState("");
+
+  // Modal state (new folder)
+  const [showNewFolderModal, setShowNewFolderModal] = useState(false);
+  const [modalFolderName, setModalFolderName] = useState("");
 
   // Inline-edit state
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
@@ -200,10 +216,14 @@ export function DashboardPage() {
   const [editingWorkspace, setEditingWorkspace] = useState(false);
   const [workspaceNameDraft, setWorkspaceNameDraft] = useState("");
 
+  const folderCreatingRef = useRef(false);
+  const boardCreatingRef  = useRef(false);
   const folderEditRef = useRef<HTMLInputElement>(null);
   const boardEditRef = useRef<HTMLInputElement>(null);
   const workspaceEditRef = useRef<HTMLInputElement>(null);
   const newFolderRef = useRef<HTMLInputElement>(null);
+  const modalInputRef = useRef<HTMLInputElement>(null);
+  const modalFolderInputRef = useRef<HTMLInputElement>(null);
 
   const apiConfigured = getWorkspaceApiBase().length > 0;
 
@@ -230,6 +250,28 @@ export function DashboardPage() {
       workspaceEditRef.current?.select();
     }
   }, [editingWorkspace]);
+
+  // Auto-focus modal input when it opens
+  useEffect(() => {
+    if (showNewBoardModal) {
+      const t = setTimeout(() => {
+        modalInputRef.current?.focus();
+        modalInputRef.current?.select();
+      }, 40);
+      return () => clearTimeout(t);
+    }
+  }, [showNewBoardModal]);
+
+  // Auto-focus folder modal input
+  useEffect(() => {
+    if (showNewFolderModal) {
+      const t = setTimeout(() => {
+        modalFolderInputRef.current?.focus();
+        modalFolderInputRef.current?.select();
+      }, 40);
+      return () => clearTimeout(t);
+    }
+  }, [showNewFolderModal]);
 
   // ── Data fetching ────────────────────────────────────────────────────────────
   const refreshFolders = useCallback(async () => {
@@ -296,27 +338,59 @@ export function DashboardPage() {
     const name = workspaceNameDraft.trim();
     setEditingWorkspace(false);
     if (!name || name === workspace.name) return;
-    setActionLoading(true);
+    const prevName = workspace.name;
+    // Optimistic update — feels instant
+    setWorkspace((prev) => (prev ? { ...prev, name } : prev));
     setError(null);
     try {
-      const updated = await renameWorkspace(getToken, workspace.id, name);
-      setWorkspace((prev) => (prev ? { ...prev, name: updated.name } : prev));
+      await renameWorkspace(getToken, workspace.id, name);
     } catch (e: any) {
+      setWorkspace((prev) => (prev ? { ...prev, name: prevName } : prev));
       setError(e?.message || "Could not rename workspace");
-    } finally { setActionLoading(false); }
+    }
   };
 
   // ── Folders ──────────────────────────────────────────────────────────────────
+  const openNewFolderModal = () => {
+    setModalFolderName("");
+    setShowNewFolderModal(true);
+  };
+
+  const closeNewFolderModal = () => {
+    setShowNewFolderModal(false);
+    setModalFolderName("");
+  };
+
   const onCreateFolder = async () => {
-    const name = newFolderName.trim();
-    if (!name || !workspace) return;
+    const name = modalFolderName.trim();
+    if (!name || !workspace || folderCreatingRef.current) return;
+
+    closeNewFolderModal();
+    folderCreatingRef.current = true;
     setError(null);
+
+    // Optimistic: add a placeholder folder immediately
+    const tempId = `__tmp__${Date.now()}`;
+    const now = new Date().toISOString();
+    setFolders((prev) => [
+      ...prev,
+      { id: tempId, name, boardCount: 0, workspaceId: workspace.id, createdAt: now, updatedAt: now, sortOrder: prev.length * 10 } as ApiFolder,
+    ]);
+    setSelectedFolderId(tempId);
+
     try {
-      await createFolder(getToken, workspace.id, name);
-      setNewFolderName("");
-      const { folders: fs } = await refreshFolders();
-      if (fs.length) setSelectedFolderId(fs[fs.length - 1].id);
-    } catch (e: any) { setError(e?.message || "Could not create folder"); }
+      const real = await createFolder(getToken, workspace.id, name);
+      // Replace temp with the real folder from server
+      setFolders((prev) => prev.map((f) => f.id === tempId ? { ...real, boardCount: 0 } : f));
+      setSelectedFolderId(real.id);
+    } catch (e: any) {
+      // Revert — remove the placeholder
+      setFolders((prev) => prev.filter((f) => f.id !== tempId));
+      setSelectedFolderId((prev) => (prev === tempId ? null : prev));
+      setError(e?.message || "Could not create folder");
+    } finally {
+      folderCreatingRef.current = false;
+    }
   };
 
   const onDeleteFolder = async (folderId: string) => {
@@ -341,14 +415,17 @@ export function DashboardPage() {
     const name = editingFolderName.trim();
     setEditingFolderId(null);
     if (!name) return;
-    setActionLoading(true);
+    const prevName = folders.find((f) => f.id === id)?.name ?? name;
+    // Optimistic: apply new name instantly
+    setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, name } : f)));
     setError(null);
     try {
-      const updated = await renameFolder(getToken, id, name);
-      setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, name: updated.name } : f)));
+      await renameFolder(getToken, id, name);
     } catch (e: any) {
+      // Revert
+      setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, name: prevName } : f)));
       setError(e?.message || "Could not rename folder");
-    } finally { setActionLoading(false); }
+    }
   };
 
   const moveFolder = async (index: number, dir: -1 | 1) => {
@@ -368,20 +445,50 @@ export function DashboardPage() {
   };
 
   // ── Boards ────────────────────────────────────────────────────────────────────
-  const onCreateBoard = async () => {
+  const openNewBoardModal = () => {
     if (!selectedFolderId) return;
-    const title = newBoardTitle.trim();
+    setModalBoardTitle("");
+    setShowNewBoardModal(true);
+  };
+
+  const closeNewBoardModal = () => {
+    setShowNewBoardModal(false);
+    setModalBoardTitle("");
+  };
+
+  const onCreateBoard = async () => {
+    if (!selectedFolderId || boardCreatingRef.current) return;
+    const title = modalBoardTitle.trim();
+
+    closeNewBoardModal();
+    boardCreatingRef.current = true;
     setError(null);
+
+    // Optimistic: prepend a placeholder board immediately
+    const tempId = `__tmp__${Date.now()}`;
+    const now = new Date().toISOString();
+    setBoards((prev) => [
+      { id: tempId, title: title || "Untitled board", folderId: selectedFolderId, author: currentUserName ?? null, createdAt: now, updatedAt: now } as ApiBoardListItem,
+      ...prev,
+    ]);
+    setFolders((prev) =>
+      prev.map((f) => f.id === selectedFolderId ? { ...f, boardCount: (f.boardCount ?? 0) + 1 } : f),
+    );
+
     try {
       await createBoard(getToken, selectedFolderId, title || undefined);
-      setNewBoardTitle("");
+      // Refresh to get the real board ID (needed to open it)
       await refreshBoards(selectedFolderId);
+    } catch (e: any) {
+      // Revert placeholder
+      setBoards((prev) => prev.filter((b) => b.id !== tempId));
       setFolders((prev) =>
-        prev.map((f) =>
-          f.id === selectedFolderId ? { ...f, boardCount: (f.boardCount ?? 0) + 1 } : f,
-        ),
+        prev.map((f) => f.id === selectedFolderId ? { ...f, boardCount: Math.max(0, (f.boardCount ?? 1) - 1) } : f),
       );
-    } catch (e: any) { setError(e?.message || "Could not create board"); }
+      setError(e?.message || "Could not create board");
+    } finally {
+      boardCreatingRef.current = false;
+    }
   };
 
   const onDeleteBoard = async (boardId: string, title: string) => {
@@ -414,16 +521,17 @@ export function DashboardPage() {
     const title = editingBoardTitle.trim();
     setEditingBoardId(null);
     if (!title) return;
-    setActionLoading(true);
+    const prevTitle = boards.find((b) => b.id === id)?.title ?? title;
+    // Optimistic: show new name right away
+    setBoards((prev) => prev.map((b) => (b.id === id ? { ...b, title } : b)));
     setError(null);
     try {
-      const updated = await renameBoard(getToken, id, title);
-      setBoards((prev) =>
-        prev.map((b) => (b.id === id ? { ...b, title: updated.title } : b)),
-      );
+      await renameBoard(getToken, id, title);
     } catch (e: any) {
+      // Revert
+      setBoards((prev) => prev.map((b) => (b.id === id ? { ...b, title: prevTitle } : b)));
       setError(e?.message || "Could not rename board");
-    } finally { setActionLoading(false); }
+    }
   };
 
   // ── Guard renders ────────────────────────────────────────────────────────────
@@ -495,6 +603,7 @@ export function DashboardPage() {
 
   // ── Main Dashboard ────────────────────────────────────────────────────────────
   return (
+    <>
     <div className="aim-dashboard">
 
       {/* ── Top header bar ── */}
@@ -550,7 +659,7 @@ export function DashboardPage() {
           <button
             type="button"
             className="aim-dashboard__btn aim-dashboard__btn--primary aim-dashboard__btn--sm"
-            onClick={() => void onCreateBoard()}
+            onClick={openNewBoardModal}
             disabled={!selectedFolderId}
             title={!selectedFolderId ? "Select a folder first" : "Create a new board"}
           >
@@ -579,31 +688,22 @@ export function DashboardPage() {
 
         {/* ── Sidebar ── */}
         <aside className="aim-dashboard__sidebar">
-          <div className="aim-dashboard__sidebar-label">Folders</div>
+          <div className="aim-dashboard__sidebar-label desktop-only">Folders</div>
 
-          {/* New folder input — top of sidebar */}
-          <div className="aim-dashboard__sidebar-top">
-            <div className="aim-dashboard__new-folder-row">
-              <input
-                ref={newFolderRef}
-                className="aim-dashboard__input aim-dashboard__new-folder-input"
-                placeholder="New folder…"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && void onCreateFolder()}
-                disabled={!workspace}
-              />
-              <button
-                type="button"
-                className="aim-dashboard__btn aim-dashboard__btn--primary aim-dashboard__btn--icon"
-                onClick={() => void onCreateFolder()}
-                disabled={!workspace || !newFolderName.trim()}
-                title="Add folder"
-                aria-label="Add folder"
-              >
-                +
-              </button>
-            </div>
+          {/* New Folder button (Desktop) */}
+          <div className="aim-dashboard__sidebar-top desktop-only">
+            <button
+              type="button"
+              className="aim-dashboard__new-folder-btn"
+              onClick={openNewFolderModal}
+              disabled={!workspace}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              New Folder
+            </button>
           </div>
 
           <nav className="aim-dashboard__sidebar-scroll">
@@ -614,11 +714,32 @@ export function DashboardPage() {
                 ))}
               </div>
             ) : folders.length === 0 ? (
-              <p className="aim-dashboard__no-folders">
-                No folders yet. Create one below.
-              </p>
+              <div className="aim-dashboard__folder-list">
+                <button
+                  type="button"
+                  className="aim-dashboard__new-folder-btn mobile-only"
+                  onClick={openNewFolderModal}
+                  disabled={!workspace}
+                >
+                  + New Folder
+                </button>
+                <p className="aim-dashboard__no-folders desktop-only">
+                  No folders yet. Create one below.
+                </p>
+              </div>
             ) : (
               <ul className="aim-dashboard__folder-list">
+                {/* Mobile-only New Folder button inserted directly into the horizontally scrolling strip */}
+                <li className="mobile-only">
+                  <button
+                    type="button"
+                    className="aim-dashboard__new-folder-btn"
+                    onClick={openNewFolderModal}
+                    disabled={!workspace}
+                  >
+                    + New Folder
+                  </button>
+                </li>
                 {folders.map((f, index) => (
                   <li key={f.id} className="aim-dashboard__folder-item">
                     {editingFolderId === f.id ? (
@@ -729,15 +850,6 @@ export function DashboardPage() {
                   disabled={!selectedFolderId}
                 />
               </div>
-              {/* New board title */}
-              <input
-                className="aim-dashboard__input aim-dashboard__new-board-input"
-                placeholder="Board title (optional)"
-                value={newBoardTitle}
-                onChange={(e) => setNewBoardTitle(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && void onCreateBoard()}
-                disabled={!selectedFolderId}
-              />
             </div>
           </div>
 
@@ -818,18 +930,21 @@ export function DashboardPage() {
 
                         {/* Author */}
                         <td>
-                          {b.author ? (
-                            <div className="aim-dashboard__author-cell">
-                              <span className="aim-dashboard__avatar">
-                                {getInitials(b.author)}
-                              </span>
-                              <span className="aim-dashboard__meta-cell">
-                                {b.author}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="aim-dashboard__meta-cell">—</span>
-                          )}
+                          {(() => {
+                            const displayName = b.author || currentUserName;
+                            return displayName ? (
+                              <div className="aim-dashboard__author-cell">
+                                <span className="aim-dashboard__avatar">
+                                  {getInitials(displayName)}
+                                </span>
+                                <span className="aim-dashboard__meta-cell">
+                                  {displayName}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="aim-dashboard__meta-cell">—</span>
+                            );
+                          })()}
                         </td>
 
                         {/* Actions */}
@@ -883,5 +998,110 @@ export function DashboardPage() {
         </main>
       </div>
     </div>
+
+      {/* ── New Board Modal ── */}
+      {showNewBoardModal && (
+        <div
+          className="db-modal-overlay"
+          role="presentation"
+          onClick={closeNewBoardModal}
+        >
+          <div
+            className="db-modal"
+            role="dialog"
+            aria-modal
+            aria-labelledby="db-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="db-modal__header">
+              <div className="db-modal__header-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="12" y1="18" x2="12" y2="12"/>
+                  <line x1="9" y1="15" x2="15" y2="15"/>
+                </svg>
+              </div>
+              <h2 className="db-modal__title" id="db-modal-title">New board</h2>
+              <button type="button" className="db-modal__close" onClick={closeNewBoardModal} aria-label="Close">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div className="db-modal__body">
+              <label className="db-modal__label" htmlFor="db-modal-board-name">Board name</label>
+              <input
+                ref={modalInputRef}
+                id="db-modal-board-name"
+                className="aim-dashboard__input db-modal__input"
+                placeholder="e.g. Week 1 — Introduction"
+                value={modalBoardTitle}
+                onChange={(e) => setModalBoardTitle(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void onCreateBoard(); if (e.key === "Escape") closeNewBoardModal(); }}
+                maxLength={200}
+                autoComplete="off"
+              />
+              <p className="db-modal__hint">Creating in folder: <strong>{selectedFolder?.name ?? "—"}</strong></p>
+            </div>
+            <div className="db-modal__footer">
+              <button type="button" className="aim-dashboard__btn" onClick={closeNewBoardModal}>Cancel</button>
+              <button type="button" className="aim-dashboard__btn aim-dashboard__btn--primary" onClick={() => void onCreateBoard()}>Create board</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── New Folder Modal ── */}
+      {showNewFolderModal && (
+        <div
+          className="db-modal-overlay"
+          role="presentation"
+          onClick={closeNewFolderModal}
+        >
+          <div
+            className="db-modal"
+            role="dialog"
+            aria-modal
+            aria-labelledby="db-folder-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="db-modal__header">
+              <div className="db-modal__header-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                </svg>
+              </div>
+              <h2 className="db-modal__title" id="db-folder-modal-title">New folder</h2>
+              <button type="button" className="db-modal__close" onClick={closeNewFolderModal} aria-label="Close">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div className="db-modal__body">
+              <label className="db-modal__label" htmlFor="db-folder-modal-name">Folder name</label>
+              <input
+                ref={modalFolderInputRef}
+                id="db-folder-modal-name"
+                className="aim-dashboard__input db-modal__input"
+                placeholder="e.g. Unit 1 — Basics"
+                value={modalFolderName}
+                onChange={(e) => setModalFolderName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void onCreateFolder(); if (e.key === "Escape") closeNewFolderModal(); }}
+                maxLength={200}
+                autoComplete="off"
+              />
+              <p className="db-modal__hint">Inside: <strong>{workspace?.name ?? "—"}</strong></p>
+            </div>
+            <div className="db-modal__footer">
+              <button type="button" className="aim-dashboard__btn" onClick={closeNewFolderModal}>Cancel</button>
+              <button type="button" className="aim-dashboard__btn aim-dashboard__btn--primary" onClick={() => void onCreateFolder()} disabled={!modalFolderName.trim()}>Create folder</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -531,18 +531,45 @@ function requireAuthApi(req, res) {
   return auth;
 }
 
+async function fetchClerkUserName(clerkUserId) {
+  const secretKey = process.env.CLERK_SECRET_KEY;
+  if (!secretKey) return null;
+  try {
+    const resp = await fetch(
+      `https://api.clerk.com/v1/users/${clerkUserId}`,
+      { headers: { Authorization: `Bearer ${secretKey}` } },
+    );
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return (
+      [data.first_name, data.last_name].filter(Boolean).join(" ") ||
+      data.username ||
+      data.email_addresses?.[0]?.email_address ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
 async function upsertUserFromAuth(auth) {
   const email =
     auth.sessionClaims?.email ||
     auth.sessionClaims?.email_address ||
     auth.sessionClaims?.["email"];
-  const name =
+  let name =
     auth.sessionClaims?.full_name ||
     [auth.sessionClaims?.first_name, auth.sessionClaims?.last_name]
       .filter(Boolean)
       .join(" ") ||
     null;
   const avatarUrl = auth.sessionClaims?.image_url || null;
+
+  // Clerk JWTs don't include name claims by default — fall back to REST API
+  if (!name) {
+    name = await fetchClerkUserName(auth.userId);
+  }
+
   const { rows } = await pool.query(
     `
       INSERT INTO users (clerk_user_id, email, name, avatar_url, updated_at)
@@ -550,7 +577,7 @@ async function upsertUserFromAuth(auth) {
       ON CONFLICT (clerk_user_id)
       DO UPDATE SET
         email = EXCLUDED.email,
-        name = EXCLUDED.name,
+        name = COALESCE(EXCLUDED.name, users.name),
         avatar_url = EXCLUDED.avatar_url,
         updated_at = NOW()
       RETURNING id;
@@ -559,6 +586,7 @@ async function upsertUserFromAuth(auth) {
   );
   return rows[0].id;
 }
+
 
 async function logUsage({
   userId,

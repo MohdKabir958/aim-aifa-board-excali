@@ -1,101 +1,125 @@
-import React from "react";
-import { uploadBytes, ref } from "firebase/storage";
-import { nanoid } from "nanoid";
+import React, { useState } from "react";
 
-import { trackEvent } from "@excalidraw/excalidraw/analytics";
 import { Card } from "@excalidraw/excalidraw/components/Card";
 import { ToolButton } from "@excalidraw/excalidraw/components/ToolButton";
-import { MIME_TYPES, getFrame } from "@excalidraw/common";
-import {
-  encryptData,
-  generateEncryptionKey,
-} from "@excalidraw/excalidraw/data/encryption";
-import { serializeAsJSON } from "@excalidraw/excalidraw/data/json";
-import { isInitializedImageElement } from "@excalidraw/element";
+import { exportToCanvas } from "@excalidraw/excalidraw";
 
-import type {
-  FileId,
-  NonDeletedExcalidrawElement,
-} from "@excalidraw/element/types";
-import type {
-  AppState,
-  BinaryFileData,
-  BinaryFiles,
-} from "@excalidraw/excalidraw/types";
-
-import { FILE_UPLOAD_MAX_BYTES } from "../app_constants";
-import { encodeFilesForUpload } from "../data/FileManager";
-import { loadFirebaseStorage, saveFilesToFirebase } from "../data/firebase";
+import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
+import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
 
 import { AimtutorWordmark } from "./AimtutorWordmark";
 
+// ── PDF export helper ─────────────────────────────────────────────────────────
+const downloadAsPdf = async (
+  elements: readonly NonDeletedExcalidrawElement[],
+  appState: Partial<AppState>,
+  files: BinaryFiles,
+  name: string,
+) => {
+  const canvas = await exportToCanvas({
+    elements,
+    appState: {
+      ...appState,
+      exportBackground: true,
+    },
+    files,
+    getDimensions: (width: number, height: number) => ({
+      width,
+      height,
+      scale: 2, // 2× for crisp print quality
+    }),
+  });
+
+  const dataUrl = canvas.toDataURL("image/png");
+
+  // Open a minimal HTML page and trigger the browser's native print/Save-as-PDF dialog
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    // Fallback: direct image download if popup blocked
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `${name || "board"}.png`;
+    a.click();
+    return;
+  }
+
+  printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${name || "AimTutor Board"}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    @page { margin: 0; size: auto; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      background: #fff;
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <img src="${dataUrl}" />
+  <script>
+    window.onload = function () {
+      setTimeout(function () { window.print(); }, 250);
+    };
+  </script>
+</body>
+</html>`);
+  printWindow.document.close();
+};
+
+// ── Re-exported for legacy callers (now a no-op Firebase stub) ────────────────
 export const exportToExcalidrawPlus = async (
   elements: readonly NonDeletedExcalidrawElement[],
   appState: Partial<AppState>,
   files: BinaryFiles,
   name: string,
 ) => {
-  const storage = await loadFirebaseStorage();
-
-  const id = `${nanoid(12)}`;
-
-  const encryptionKey = (await generateEncryptionKey())!;
-  const encryptedData = await encryptData(
-    encryptionKey,
-    serializeAsJSON(elements, appState, files, "database"),
-  );
-
-  const blob = new Blob(
-    [encryptedData.iv, new Uint8Array(encryptedData.encryptedBuffer)],
-    {
-      type: MIME_TYPES.binary,
-    },
-  );
-
-  const storageRef = ref(storage, `/migrations/scenes/${id}`);
-  await uploadBytes(storageRef, blob, {
-    customMetadata: {
-      data: JSON.stringify({ version: 2, name }),
-      created: Date.now().toString(),
-    },
-  });
-
-  const filesMap = new Map<FileId, BinaryFileData>();
-  for (const element of elements) {
-    if (isInitializedImageElement(element) && files[element.fileId]) {
-      filesMap.set(element.fileId, files[element.fileId]);
-    }
-  }
-
-  if (filesMap.size) {
-    const filesToUpload = await encodeFilesForUpload({
-      files: filesMap,
-      encryptionKey,
-      maxBytes: FILE_UPLOAD_MAX_BYTES,
-    });
-
-    await saveFilesToFirebase({
-      prefix: `/migrations/files/scenes/${id}`,
-      files: filesToUpload,
-    });
-  }
-
-  window.open(
-    `${
-      import.meta.env.VITE_APP_PLUS_APP
-    }/import?excalidraw=${id},${encryptionKey}`,
-  );
+  await downloadAsPdf(elements, appState, files, name);
 };
 
+// ── Component ─────────────────────────────────────────────────────────────────
 export const ExportToExcalidrawPlus: React.FC<{
   elements: readonly NonDeletedExcalidrawElement[];
   appState: Partial<AppState>;
   files: BinaryFiles;
   name: string;
+  /** Passed when on a cloud board (unused here but accepted for compat). */
+  boardId?: string | null;
   onError: (error: Error) => void;
   onSuccess: () => void;
 }> = ({ elements, appState, files, name, onError, onSuccess }) => {
-  const exportLabel = "Export to aimtutor.ai+";
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const btnLabel = done ? "✓ PDF ready!" : busy ? "Preparing PDF…" : "Download as PDF";
+
+  const handleExport = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await downloadAsPdf(elements, appState, files, name);
+      setDone(true);
+      setTimeout(() => setDone(false), 3000);
+      onSuccess();
+    } catch (error: any) {
+      console.error(error);
+      onError(new Error("Could not export to PDF. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Card color="primary">
       <div className="Card-icon">
@@ -103,26 +127,15 @@ export const ExportToExcalidrawPlus: React.FC<{
       </div>
       <h2>aimtutor.ai+</h2>
       <div className="Card-details">
-        Save your scene to your aimtutor.ai+ workspace.
+        Download your board as a PDF via the browser print dialog.
       </div>
       <ToolButton
         className="Card-button"
         type="button"
-        title={exportLabel}
-        aria-label={exportLabel}
+        title={btnLabel}
+        aria-label={btnLabel}
         showAriaLabel={true}
-        onClick={async () => {
-          try {
-            trackEvent("export", "eplus", `ui (${getFrame()})`);
-            await exportToExcalidrawPlus(elements, appState, files, name);
-            onSuccess();
-          } catch (error: any) {
-            console.error(error);
-            if (error.name !== "AbortError") {
-              onError(new Error("Unable to export to aimtutor.ai+ right now."));
-            }
-          }
-        }}
+        onClick={handleExport}
       />
     </Card>
   );

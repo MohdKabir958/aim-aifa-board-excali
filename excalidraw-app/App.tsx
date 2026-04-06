@@ -419,6 +419,7 @@ const ExcalidrawWrapper = () => {
   const navigate = useNavigate();
   const { boardId: boardIdParam } = useParams<{ boardId?: string }>();
   const boardId = boardIdParam ?? null;
+  const [boardTitle, setBoardTitle] = useState<string | null>(null);
   const cloudBoardMetaRef = useRef<{ id: string; updatedAt: string } | null>(
     null,
   );
@@ -435,6 +436,7 @@ const ExcalidrawWrapper = () => {
       id: boardIdStr,
       updatedAt: new Date(board.updatedAt).toISOString(),
     };
+    setBoardTitle(board.title ?? null);
     const s = scene as {
       elements?: Parameters<typeof restoreElements>[0];
       appState?: Parameters<typeof restoreAppState>[0];
@@ -1097,16 +1099,32 @@ const ExcalidrawWrapper = () => {
         >
           <AimtutorWordmark variant="toolbar" />
         </Link>
-        {boardId ? (
-          <Link className="aimtutor-board-back" to="/dashboard">
-            Workspace
-          </Link>
-        ) : null}
-        {isClerkEnabled() && isSignedIn && !boardId ? (
-          <Link className="aimtutor-board-back" to="/dashboard">
-            My workspace
-          </Link>
-        ) : null}
+
+        {isClerkEnabled() && isSignedIn && (
+          <nav className="aimtutor-breadcrumb" aria-label="Navigation">
+            {/* My workspace pill */}
+            <Link className="aimtutor-breadcrumb__home" to="/dashboard">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+              My workspace
+            </Link>
+
+            {boardId && (
+              <>
+                <span className="aimtutor-breadcrumb__sep" aria-hidden>›</span>
+                {boardTitle ? (
+                  <span className="aimtutor-breadcrumb__board" title={boardTitle}>
+                    {boardTitle}
+                  </span>
+                ) : (
+                  <span className="aimtutor-breadcrumb__board aimtutor-breadcrumb__board--loading" />
+                )}
+              </>
+            )}
+          </nav>
+        )}
       </div>
       <Excalidraw
         onChange={onChange}
@@ -1121,6 +1139,29 @@ const ExcalidrawWrapper = () => {
               onExportToBackend,
               renderCustomUI: excalidrawAPI
                 ? (elements, appState, files) => {
+                    // If we're on a cloud board, it's already saved — just share the URL
+                    if (boardId) {
+                      return (
+                        <ExportToExcalidrawPlus
+                          elements={elements}
+                          appState={appState}
+                          files={files}
+                          name={excalidrawAPI.getName()}
+                          boardId={boardId}
+                          onError={(error) => {
+                            excalidrawAPI?.updateScene({
+                              appState: { errorMessage: error.message },
+                            });
+                          }}
+                          onSuccess={() => {
+                            excalidrawAPI.updateScene({
+                              appState: { openDialog: null },
+                            });
+                          }}
+                        />
+                      );
+                    }
+                    // No cloud board: fall back to full Firebase export
                     return (
                       <ExportToExcalidrawPlus
                         elements={elements}
@@ -1129,9 +1170,7 @@ const ExcalidrawWrapper = () => {
                         name={excalidrawAPI.getName()}
                         onError={(error) => {
                           excalidrawAPI?.updateScene({
-                            appState: {
-                              errorMessage: error.message,
-                            },
+                            appState: { errorMessage: error.message },
                           });
                         }}
                         onSuccess={() => {
