@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { gunzipSync, gzipSync } from "node:zlib";
 
 import { clerkMiddleware, getAuth } from "@clerk/express";
 import cors from "cors";
@@ -93,7 +94,7 @@ app.use(
 app.use(
   cors({
     ...resolveCorsConfig(),
-    methods: ["GET", "POST", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Accept", "Authorization"],
     credentials: false,
     maxAge: 86_400,
@@ -117,6 +118,14 @@ const aiLimiter = rateLimit({
 });
 app.use("/v1", v1Limiter);
 app.use("/v1/ai", aiLimiter);
+
+const boardPutLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isProduction ? 4000 : 25000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many board saves" },
+});
 
 app.use(clerkMiddleware());
 app.use(auditV1Requests);
@@ -231,6 +240,119 @@ async function ensureSchema() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_user_activity_action ON user_activity_events (action);
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS workspaces (
+      id BIGSERIAL PRIMARY KEY,
+      owner_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL DEFAULT 'My workspace',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(owner_user_id)
+    );
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_workspaces_owner ON workspaces(owner_user_id);
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS folders (
+      id BIGSERIAL PRIMARY KEY,
+      workspace_id BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_folders_workspace ON folders(workspace_id);
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS boards (
+      id BIGSERIAL PRIMARY KEY,
+      folder_id BIGINT NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+      title TEXT NOT NULL DEFAULT 'Untitled board',
+      scene_gzip BYTEA NOT NULL,
+      created_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_boards_folder_updated ON boards(folder_id, updated_at DESC);
+  `);
+}
+
+const DEFAULT_SCENE_SOURCE = "https://aimtutor.ai";
+
+function defaultEmptyScene() {
+  return {
+    type: "excalidraw",
+    version: 2,
+    source: DEFAULT_SCENE_SOURCE,
+    elements: [],
+    appState: {},
+    files: {},
+  };
+}
+
+function sceneToGzipBuffer(sceneObj) {
+  return gzipSync(Buffer.from(JSON.stringify(sceneObj), "utf8"));
+}
+
+function gzipBufferToScene(buf) {
+  const raw = gunzipSync(buf).toString("utf8");
+  return JSON.parse(raw);
+}
+
+async function ensureDefaultWorkspace(localUserId) {
+  const { rows } = await pool.query(
+    `SELECT id, name, created_at, updated_at FROM workspaces WHERE owner_user_id = $1`,
+    [localUserId],
+  );
+  if (rows.length) {
+    return rows[0];
+  }
+  const ins = await pool.query(
+    `INSERT INTO workspaces (owner_user_id, name) VALUES ($1, 'My workspace')
+     RETURNING id, name, created_at, updated_at`,
+    [localUserId],
+  );
+  return ins.rows[0];
+}
+
+async function assertWorkspaceOwned(workspaceId, localUserId) {
+  const { rows } = await pool.query(
+    `SELECT id, name, created_at, updated_at FROM workspaces WHERE id = $1 AND owner_user_id = $2`,
+    [workspaceId, localUserId],
+  );
+  return rows[0] ?? null;
+}
+
+async function assertFolderOwned(folderId, localUserId) {
+  const { rows } = await pool.query(
+    `
+    SELECT f.id, f.workspace_id, f.name, f.sort_order, f.created_at, f.updated_at
+    FROM folders f
+    JOIN workspaces w ON w.id = f.workspace_id
+    WHERE f.id = $1 AND w.owner_user_id = $2
+    `,
+    [folderId, localUserId],
+  );
+  return rows[0] ?? null;
+}
+
+async function assertBoardOwned(boardId, localUserId) {
+  const { rows } = await pool.query(
+    `
+    SELECT b.id, b.folder_id, b.title, b.scene_gzip, b.created_by_user_id, b.created_at, b.updated_at
+    FROM boards b
+    JOIN folders f ON f.id = b.folder_id
+    JOIN workspaces w ON w.id = f.workspace_id
+    WHERE b.id = $1 AND w.owner_user_id = $2
+    `,
+    [boardId, localUserId],
+  );
+  return rows[0] ?? null;
 }
 
 function parseActivityEvents(body) {
@@ -521,6 +643,475 @@ app.post(
   }),
 );
 
+// --- Workspaces, folders, boards (personal workspace MVP) ---
+
+app.get(
+  "/v1/workspaces",
+  asyncRoute(async (req, res) => {
+    if (!requireDatabase(res)) {
+      return;
+    }
+    const auth = requireAuthApi(req, res);
+    if (!auth) {
+      return;
+    }
+    const localUserId = await upsertUserFromAuth(auth);
+    const row = await ensureDefaultWorkspace(localUserId);
+    res.locals.auditDetails = { kind: "workspaces_list" };
+    res.json({
+      workspaces: [
+        {
+          id: String(row.id),
+          name: row.name,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        },
+      ],
+    });
+  }),
+);
+
+app.post(
+  "/v1/workspaces/:workspaceId/folders",
+  asyncRoute(async (req, res) => {
+    if (!requireDatabase(res)) {
+      return;
+    }
+    const auth = requireAuthApi(req, res);
+    if (!auth) {
+      return;
+    }
+    const localUserId = await upsertUserFromAuth(auth);
+    const workspaceId = req.params.workspaceId;
+    const ws = await assertWorkspaceOwned(workspaceId, localUserId);
+    if (!ws) {
+      res.locals.auditError = "workspace not found";
+      res.status(404).json({ message: "Workspace not found" });
+      return;
+    }
+    const name =
+      typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 200) : "";
+    if (!name) {
+      res.locals.auditError = "folder name required";
+      res.status(400).json({ message: "name is required" });
+      return;
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO folders (workspace_id, name) VALUES ($1, $2)
+       RETURNING id, workspace_id, name, sort_order, created_at, updated_at`,
+      [workspaceId, name],
+    );
+    res.locals.auditDetails = { kind: "folder_create", folderId: rows[0].id };
+    res.status(201).json({ folder: serializeFolderRow(rows[0]) });
+  }),
+);
+
+app.get(
+  "/v1/workspaces/:workspaceId/folders",
+  asyncRoute(async (req, res) => {
+    if (!requireDatabase(res)) {
+      return;
+    }
+    const auth = requireAuthApi(req, res);
+    if (!auth) {
+      return;
+    }
+    const localUserId = await upsertUserFromAuth(auth);
+    const workspaceId = req.params.workspaceId;
+    const ws = await assertWorkspaceOwned(workspaceId, localUserId);
+    if (!ws) {
+      res.locals.auditError = "workspace not found";
+      res.status(404).json({ message: "Workspace not found" });
+      return;
+    }
+    const { rows } = await pool.query(
+      `
+      SELECT f.id, f.workspace_id, f.name, f.sort_order, f.created_at, f.updated_at,
+        (SELECT COUNT(*)::int FROM boards b WHERE b.folder_id = f.id) AS board_count
+      FROM folders f
+      WHERE f.workspace_id = $1
+      ORDER BY f.sort_order ASC, f.created_at ASC
+      `,
+      [workspaceId],
+    );
+    res.locals.auditDetails = { kind: "folders_list" };
+    res.json({
+      folders: rows.map((r) => ({
+        ...serializeFolderRow(r),
+        boardCount: r.board_count,
+      })),
+    });
+  }),
+);
+
+app.patch(
+  "/v1/folders/:folderId",
+  asyncRoute(async (req, res) => {
+    if (!requireDatabase(res)) {
+      return;
+    }
+    const auth = requireAuthApi(req, res);
+    if (!auth) {
+      return;
+    }
+    const localUserId = await upsertUserFromAuth(auth);
+    const folderId = req.params.folderId;
+    const folder = await assertFolderOwned(folderId, localUserId);
+    if (!folder) {
+      res.locals.auditError = "folder not found";
+      res.status(404).json({ message: "Folder not found" });
+      return;
+    }
+    const name =
+      typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 200) : null;
+    const sortOrder =
+      typeof req.body?.sortOrder === "number" && Number.isFinite(req.body.sortOrder)
+        ? Math.trunc(req.body.sortOrder)
+        : null;
+    if (!name && sortOrder === null) {
+      res.status(400).json({ message: "Provide name and/or sortOrder" });
+      return;
+    }
+    const { rows } = await pool.query(
+      `
+      UPDATE folders SET
+        name = COALESCE($2, name),
+        sort_order = COALESCE($3, sort_order),
+        updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, workspace_id, name, sort_order, created_at, updated_at
+      `,
+      [folderId, name, sortOrder],
+    );
+    res.locals.auditDetails = { kind: "folder_patch" };
+    res.json({ folder: serializeFolderRow(rows[0]) });
+  }),
+);
+
+app.delete(
+  "/v1/folders/:folderId",
+  asyncRoute(async (req, res) => {
+    if (!requireDatabase(res)) {
+      return;
+    }
+    const auth = requireAuthApi(req, res);
+    if (!auth) {
+      return;
+    }
+    const localUserId = await upsertUserFromAuth(auth);
+    const folderId = req.params.folderId;
+    const folder = await assertFolderOwned(folderId, localUserId);
+    if (!folder) {
+      res.locals.auditError = "folder not found";
+      res.status(404).json({ message: "Folder not found" });
+      return;
+    }
+    await pool.query(`DELETE FROM folders WHERE id = $1`, [folderId]);
+    res.locals.auditDetails = { kind: "folder_delete" };
+    res.status(204).end();
+  }),
+);
+
+app.post(
+  "/v1/folders/:folderId/boards",
+  asyncRoute(async (req, res) => {
+    if (!requireDatabase(res)) {
+      return;
+    }
+    const auth = requireAuthApi(req, res);
+    if (!auth) {
+      return;
+    }
+    const localUserId = await upsertUserFromAuth(auth);
+    const folderId = req.params.folderId;
+    const folder = await assertFolderOwned(folderId, localUserId);
+    if (!folder) {
+      res.locals.auditError = "folder not found";
+      res.status(404).json({ message: "Folder not found" });
+      return;
+    }
+    const titleRaw =
+      typeof req.body?.title === "string" ? req.body.title.trim().slice(0, 200) : "";
+    const title = titleRaw || "Untitled board";
+    const gzip = sceneToGzipBuffer(defaultEmptyScene());
+    const { rows } = await pool.query(
+      `INSERT INTO boards (folder_id, title, scene_gzip, created_by_user_id)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, folder_id, title, created_at, updated_at`,
+      [folderId, title, gzip, localUserId],
+    );
+    res.locals.auditDetails = { kind: "board_create", boardId: rows[0].id };
+    res.status(201).json({ board: serializeBoardListRow(rows[0], null) });
+  }),
+);
+
+app.get(
+  "/v1/folders/:folderId/boards",
+  asyncRoute(async (req, res) => {
+    if (!requireDatabase(res)) {
+      return;
+    }
+    const auth = requireAuthApi(req, res);
+    if (!auth) {
+      return;
+    }
+    const localUserId = await upsertUserFromAuth(auth);
+    const folderId = req.params.folderId;
+    const folder = await assertFolderOwned(folderId, localUserId);
+    if (!folder) {
+      res.locals.auditError = "folder not found";
+      res.status(404).json({ message: "Folder not found" });
+      return;
+    }
+    const { rows } = await pool.query(
+      `
+      SELECT b.id, b.folder_id, b.title, b.created_at, b.updated_at,
+        u.name AS author_name, u.email AS author_email
+      FROM boards b
+      LEFT JOIN users u ON u.id = b.created_by_user_id
+      WHERE b.folder_id = $1
+      ORDER BY b.updated_at DESC
+      `,
+      [folderId],
+    );
+    res.locals.auditDetails = { kind: "boards_list" };
+    res.json({
+      boards: rows.map((r) => serializeBoardListRow(r, r.author_name || r.author_email)),
+    });
+  }),
+);
+
+app.get(
+  "/v1/boards/:boardId",
+  asyncRoute(async (req, res) => {
+    if (!requireDatabase(res)) {
+      return;
+    }
+    const auth = requireAuthApi(req, res);
+    if (!auth) {
+      return;
+    }
+    const localUserId = await upsertUserFromAuth(auth);
+    const boardId = req.params.boardId;
+    const board = await assertBoardOwned(boardId, localUserId);
+    if (!board) {
+      res.locals.auditError = "board not found";
+      res.status(404).json({ message: "Board not found" });
+      return;
+    }
+    let scene;
+    try {
+      scene = gzipBufferToScene(board.scene_gzip);
+    } catch (e) {
+      res.locals.auditError = "corrupt scene";
+      res.status(500).json({ message: "Board data could not be read" });
+      return;
+    }
+    res.locals.auditDetails = { kind: "board_get" };
+    res.json({
+      board: {
+        id: String(board.id),
+        folderId: String(board.folder_id),
+        title: board.title,
+        createdAt: board.created_at,
+        updatedAt: board.updated_at,
+      },
+      scene,
+    });
+  }),
+);
+
+app.put(
+  "/v1/boards/:boardId",
+  boardPutLimiter,
+  asyncRoute(async (req, res) => {
+    if (!requireDatabase(res)) {
+      return;
+    }
+    const auth = requireAuthApi(req, res);
+    if (!auth) {
+      return;
+    }
+    const localUserId = await upsertUserFromAuth(auth);
+    const boardId = req.params.boardId;
+    const board = await assertBoardOwned(boardId, localUserId);
+    if (!board) {
+      res.locals.auditError = "board not found";
+      res.status(404).json({ message: "Board not found" });
+      return;
+    }
+    const scene = req.body?.scene;
+    if (!scene || typeof scene !== "object" || Array.isArray(scene)) {
+      res.locals.auditError = "invalid scene";
+      res.status(400).json({ message: "body.scene must be an object" });
+      return;
+    }
+    const expected =
+      typeof req.body?.expectedUpdatedAt === "string"
+        ? req.body.expectedUpdatedAt
+        : null;
+    if (expected) {
+      const prevIso = new Date(board.updated_at).toISOString();
+      if (prevIso !== expected) {
+        res.locals.auditError = "version conflict";
+        res.status(409).json({
+          message: "Board was modified elsewhere. Reload and try again.",
+          currentUpdatedAt: prevIso,
+        });
+        return;
+      }
+    }
+    let gzip;
+    try {
+      gzip = sceneToGzipBuffer(scene);
+    } catch (e) {
+      res.locals.auditError = "scene serialize failed";
+      res.status(400).json({ message: "Could not store scene" });
+      return;
+    }
+    const maxBytes = parseInt(process.env.BOARD_SCENE_MAX_GZIP_BYTES || "12582912", 10);
+    if (gzip.length > maxBytes) {
+      res.locals.auditError = "scene too large";
+      res.status(413).json({ message: "Board is too large to save" });
+      return;
+    }
+    const titleUpd =
+      typeof req.body?.title === "string" ? req.body.title.trim().slice(0, 200) : null;
+    const { rows } = await pool.query(
+      `
+      UPDATE boards SET
+        scene_gzip = $2,
+        title = COALESCE($3, title),
+        updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, folder_id, title, created_at, updated_at
+      `,
+      [boardId, gzip, titleUpd],
+    );
+    res.locals.auditDetails = { kind: "board_put" };
+    res.json({
+      board: {
+        id: String(rows[0].id),
+        folderId: String(rows[0].folder_id),
+        title: rows[0].title,
+        createdAt: rows[0].created_at,
+        updatedAt: rows[0].updated_at,
+      },
+    });
+  }),
+);
+
+function serializeFolderRow(r) {
+  return {
+    id: String(r.id),
+    workspaceId: String(r.workspace_id),
+    name: r.name,
+    sortOrder: r.sort_order,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+function serializeBoardListRow(r, authorLabel) {
+  return {
+    id: String(r.id),
+    folderId: String(r.folder_id),
+    title: r.title,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    author: authorLabel || null,
+  };
+}
+
+app.patch(
+  "/v1/workspaces/:workspaceId",
+  asyncRoute(async (req, res) => {
+    if (!requireDatabase(res)) return;
+    const auth = requireAuthApi(req, res);
+    if (!auth) return;
+    const localUserId = await upsertUserFromAuth(auth);
+    const workspaceId = req.params.workspaceId;
+    const ws = await assertWorkspaceOwned(workspaceId, localUserId);
+    if (!ws) {
+      res.locals.auditError = "workspace not found";
+      res.status(404).json({ message: "Workspace not found" });
+      return;
+    }
+    const name =
+      typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 200) : null;
+    if (!name) {
+      res.status(400).json({ message: "name is required" });
+      return;
+    }
+    const { rows } = await pool.query(
+      `UPDATE workspaces SET name = $2, updated_at = NOW()
+       WHERE id = $1
+       RETURNING id, name, created_at, updated_at`,
+      [workspaceId, name],
+    );
+    res.locals.auditDetails = { kind: "workspace_patch" };
+    res.json({
+      workspace: {
+        id: String(rows[0].id),
+        name: rows[0].name,
+        createdAt: rows[0].created_at,
+        updatedAt: rows[0].updated_at,
+      },
+    });
+  }),
+);
+
+app.patch(
+  "/v1/boards/:boardId",
+  asyncRoute(async (req, res) => {
+    if (!requireDatabase(res)) return;
+    const auth = requireAuthApi(req, res);
+    if (!auth) return;
+    const localUserId = await upsertUserFromAuth(auth);
+    const boardId = req.params.boardId;
+    const board = await assertBoardOwned(boardId, localUserId);
+    if (!board) {
+      res.locals.auditError = "board not found";
+      res.status(404).json({ message: "Board not found" });
+      return;
+    }
+    const title =
+      typeof req.body?.title === "string" ? req.body.title.trim().slice(0, 200) : null;
+    if (!title) {
+      res.status(400).json({ message: "title is required" });
+      return;
+    }
+    const { rows } = await pool.query(
+      `UPDATE boards SET title = $2, updated_at = NOW()
+       WHERE id = $1
+       RETURNING id, folder_id, title, created_at, updated_at`,
+      [boardId, title],
+    );
+    res.locals.auditDetails = { kind: "board_patch" };
+    res.json({ board: serializeBoardListRow(rows[0], null) });
+  }),
+);
+
+app.delete(
+  "/v1/boards/:boardId",
+  asyncRoute(async (req, res) => {
+    if (!requireDatabase(res)) return;
+    const auth = requireAuthApi(req, res);
+    if (!auth) return;
+    const localUserId = await upsertUserFromAuth(auth);
+    const boardId = req.params.boardId;
+    const board = await assertBoardOwned(boardId, localUserId);
+    if (!board) {
+      res.locals.auditError = "board not found";
+      res.status(404).json({ message: "Board not found" });
+      return;
+    }
+    await pool.query(`DELETE FROM boards WHERE id = $1`, [boardId]);
+    res.locals.auditDetails = { kind: "board_delete", boardId };
+    res.status(204).end();
+  }),
+);
+
 app.post(
   "/v1/ai/text-to-diagram/chat-streaming",
   asyncRoute(async (req, res) => {
@@ -747,10 +1338,22 @@ ensureSchema()
       console.log(
         `[aimtutor-ai] ${isProduction ? "production" : "development"} http://${LISTEN_HOST}:${PORT}`,
       );
-      console.log(`  GET  /v1/auth/me`);
-      console.log(`  POST /v1/activity`);
-      console.log(`  POST /v1/ai/text-to-diagram/chat-streaming`);
-      console.log(`  POST /v1/ai/diagram-to-code/generate`);
+      console.log(`  GET    /v1/auth/me`);
+      console.log(`  POST   /v1/activity`);
+      console.log(`  GET    /v1/workspaces`);
+      console.log(`  PATCH  /v1/workspaces/:workspaceId`);
+      console.log(`  POST   /v1/workspaces/:workspaceId/folders`);
+      console.log(`  GET    /v1/workspaces/:workspaceId/folders`);
+      console.log(`  PATCH  /v1/folders/:folderId`);
+      console.log(`  DELETE /v1/folders/:folderId`);
+      console.log(`  POST   /v1/folders/:folderId/boards`);
+      console.log(`  GET    /v1/folders/:folderId/boards`);
+      console.log(`  GET    /v1/boards/:boardId`);
+      console.log(`  PUT    /v1/boards/:boardId`);
+      console.log(`  PATCH  /v1/boards/:boardId`);
+      console.log(`  DELETE /v1/boards/:boardId`);
+      console.log(`  POST   /v1/ai/text-to-diagram/chat-streaming`);
+      console.log(`  POST   /v1/ai/diagram-to-code/generate`);
     });
 
     const shutdown = (signal) => {

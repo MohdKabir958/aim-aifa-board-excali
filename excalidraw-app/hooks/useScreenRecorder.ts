@@ -46,7 +46,10 @@ function downloadBlob(blob: Blob) {
 export function useScreenRecorder(options?: {
   onSaved?: (blob: Blob) => void;
   onRecordingStarted?: () => void;
-  onRecordingFinished?: (info: { byteLength: number; mimeType: string }) => void;
+  onRecordingFinished?: (info: {
+    byteLength: number;
+    mimeType: string;
+  }) => void;
 }) {
   const onSavedRef = useRef(options?.onSaved);
   onSavedRef.current = options?.onSaved;

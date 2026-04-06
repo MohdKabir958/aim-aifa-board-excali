@@ -119,7 +119,7 @@ export const AIComponents = ({
         onTextSubmit={async (props) => {
           const { onChunk, onStreamCreated, signal, messages } = props;
 
-          if (isClerkEnabled) {
+          if (isClerkEnabled()) {
             if (!isLoaded) {
               return {
                 error: new RequestError({

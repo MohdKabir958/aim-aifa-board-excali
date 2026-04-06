@@ -20,7 +20,7 @@ export const AppFooter = React.memo(
           }}
         >
           {isVisualDebuggerEnabled() && <DebugFooter onChange={onChange} />}
-          {(!isClerkEnabled || (isLoaded && !isSignedIn)) && <EncryptedIcon />}
+          {(!isClerkEnabled() || (isLoaded && !isSignedIn)) && <EncryptedIcon />}
         </div>
       </Footer>
     );

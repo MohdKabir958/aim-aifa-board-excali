@@ -17,7 +17,7 @@ export const AppWelcomeScreen: React.FC<{
   const { openSignUp, isLoaded, isSignedIn } = useAppAuth();
   let headingContent;
 
-  if (isClerkEnabled && isLoaded && isSignedIn) {
+  if (isClerkEnabled() && isLoaded && isSignedIn) {
     headingContent = (
       <>
         Continue in{" "}
@@ -63,7 +63,7 @@ export const AppWelcomeScreen: React.FC<{
               onSelect={() => props.onCollabDialogOpen()}
             />
           )}
-          {isClerkEnabled && isLoaded && !isSignedIn && (
+          {isClerkEnabled() && isLoaded && !isSignedIn && (
             <WelcomeScreen.Center.MenuItem
               shortcut={null}
               icon={loginIcon}

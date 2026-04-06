@@ -1,4 +1,5 @@
 import path from "path";
+import { Buffer } from "node:buffer";
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import svgrPlugin from "vite-plugin-svgr";
@@ -147,6 +148,23 @@ export default defineConfig(({ mode }) => {
       assetsInlineLimit: 0,
     },
     plugins: [
+      /**
+       * Clerk must receive a non-empty publishableKey. Some dev setups fail to
+       * replace `import.meta.env.VITE_CLERK_PUBLISHABLE_KEY` everywhere; a meta
+       * tag is a reliable second source (publishable keys are public).
+       */
+      {
+        name: "aimtutor-clerk-publishable-meta",
+        transformIndexHtml(html) {
+          const pk = (envVars.VITE_CLERK_PUBLISHABLE_KEY ?? "").trim();
+          if (!pk) {
+            return html;
+          }
+          const b64 = Buffer.from(pk, "utf8").toString("base64");
+          const inject = `\n    <meta name="aimtutor-clerk-pk" content="${b64}" />\n`;
+          return html.replace(/<head>/i, `<head>${inject}`);
+        },
+      },
       Sitemap({
         hostname: "https://aimtutor.ai",
         outDir: "build",

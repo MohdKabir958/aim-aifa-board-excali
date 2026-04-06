@@ -49,6 +49,16 @@
       ]
     }
   ],
+  "rewrites": [
+    {
+      "source": "/board/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/dashboard",
+      "destination": "/index.html"
+    }
+  ],
   "redirects": [
     {
       "source": "/webex/:match*",

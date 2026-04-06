@@ -1,0 +1,960 @@
+/* =============================================================================
+ * aifaBoard Dashboard — Professional Design System
+ * Theme via html.dark class (toggled by inline <script> in index.html)
+ * ============================================================================ */
+
+/* ── Design tokens ──────────────────────────────────────────────────────────── */
+:root {
+  /* Surfaces */
+  --db-bg:              #f0ede8;
+  --db-surface:         #ffffff;
+  --db-surface-raised:  #f7f5f2;
+  --db-surface-hover:   #f2efec;
+
+  /* Borders */
+  --db-border:          #e0dbd3;
+  --db-border-subtle:   #ece8e2;
+
+  /* Text */
+  --db-text-1:          #18171a;
+  --db-text-2:          #5f5b56;
+  --db-text-3:          #9c9690;
+
+  /* Accent (blue) */
+  --db-accent:          #2563eb;
+  --db-accent-hover:    #1d4ed8;
+  --db-accent-muted:    rgba(37, 99, 235, 0.10);
+  --db-accent-text:     #1e40af;
+  --db-folder-active-bg:   rgba(37, 99, 235, 0.07);
+  --db-folder-active-text: #1d4ed8;
+
+  /* Danger */
+  --db-danger:          #dc2626;
+  --db-danger-muted:    rgba(220, 38, 38, 0.09);
+  --db-danger-text:     #b91c1c;
+
+  /* Shadows */
+  --db-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --db-shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.05);
+  --db-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.09), 0 2px 4px rgba(0, 0, 0, 0.05);
+
+  /* Radii */
+  --db-r-sm:  6px;
+  --db-r:     10px;
+  --db-r-lg:  14px;
+
+  /* Layout */
+  --db-sidebar: 252px;
+  --db-header:   54px;
+
+  /* Font */
+  --db-font: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+html.dark {
+  --db-bg:              #0d1117;
+  --db-surface:         #161b22;
+  --db-surface-raised:  #1c2330;
+  --db-surface-hover:   #1f2736;
+
+  --db-border:          #30363d;
+  --db-border-subtle:   #21262d;
+
+  --db-text-1:          #e4eaf2;
+  --db-text-2:          #7c8794;
+  --db-text-3:          #47515c;
+
+  --db-accent:          #4a8df8;
+  --db-accent-hover:    #6ea8fb;
+  --db-accent-muted:    rgba(56, 139, 253, 0.14);
+  --db-accent-text:     #79b8ff;
+  --db-folder-active-bg:   rgba(56, 139, 253, 0.11);
+  --db-folder-active-text: #79b8ff;
+
+  --db-danger:          #f85149;
+  --db-danger-muted:    rgba(248, 81, 73, 0.14);
+  --db-danger-text:     #ff7b72;
+
+  --db-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --db-shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.25);
+  --db-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.50), 0 2px 4px rgba(0, 0, 0, 0.30);
+}
+
+/* ── Root shell ─────────────────────────────────────────────────────────────── */
+.aim-dashboard {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--db-bg);
+  color: var(--db-text-1);
+  font-family: var(--db-font);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────────── */
+.aim-dashboard__top {
+  height: var(--db-header);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: var(--db-surface);
+  border-bottom: 1px solid var(--db-border);
+  box-shadow: var(--db-shadow-xs);
+  gap: 12px;
+  z-index: 10;
+}
+
+.aim-dashboard__header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.aim-dashboard__brand {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  flex-shrink: 0;
+  opacity: 0.9;
+  transition: opacity 0.15s;
+}
+
+.aim-dashboard__brand:hover {
+  opacity: 1;
+}
+
+.aim-dashboard__sep {
+  color: var(--db-text-3);
+  font-size: 20px;
+  font-weight: 200;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.aim-dashboard__workspace-name {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--db-text-1);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--db-font);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--db-r-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.aim-dashboard__workspace-name:hover {
+  border-color: var(--db-border);
+  background: var(--db-surface-raised);
+}
+
+.aim-dashboard__edit-badge {
+  display: inline-flex;
+  align-items: center;
+  color: var(--db-text-3);
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.aim-dashboard__workspace-name:hover .aim-dashboard__edit-badge {
+  opacity: 1;
+}
+
+.aim-dashboard__workspace-input {
+  font-weight: 600;
+  font-size: 14px;
+  width: 180px;
+}
+
+.aim-dashboard__header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Theme toggle */
+.aim-dashboard__theme-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--db-r-sm);
+  border: 1px solid var(--db-border);
+  background: transparent;
+  color: var(--db-text-2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.aim-dashboard__theme-btn:hover {
+  background: var(--db-surface-raised);
+  color: var(--db-text-1);
+}
+
+/* ── Shared buttons ─────────────────────────────────────────────────────────── */
+.aim-dashboard__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--db-border);
+  background: var(--db-surface);
+  color: var(--db-text-1);
+  padding: 6px 14px;
+  border-radius: var(--db-r-sm);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--db-font);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.aim-dashboard__btn:hover {
+  background: var(--db-surface-raised);
+  box-shadow: var(--db-shadow-xs);
+}
+
+.aim-dashboard__btn--primary {
+  background: var(--db-accent);
+  border-color: var(--db-accent);
+  color: #fff;
+}
+
+.aim-dashboard__btn--primary:hover {
+  background: var(--db-accent-hover);
+  border-color: var(--db-accent-hover);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+}
+
+.aim-dashboard__btn--primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.aim-dashboard__btn--sm {
+  padding: 5px 12px;
+  font-size: 12.5px;
+}
+
+.aim-dashboard__btn--icon {
+  width: 34px;
+  padding: 0;
+  font-size: 18px;
+  font-weight: 300;
+}
+
+/* ── Body ───────────────────────────────────────────────────────────────────── */
+.aim-dashboard__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Sidebar ────────────────────────────────────────────────────────────────── */
+.aim-dashboard__sidebar {
+  width: var(--db-sidebar);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--db-surface);
+  border-right: 1px solid var(--db-border);
+  overflow: hidden;
+}
+
+.aim-dashboard__sidebar-label {
+  padding: 16px 16px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--db-text-3);
+  flex-shrink: 0;
+}
+
+.aim-dashboard__sidebar-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px;
+}
+
+.aim-dashboard__sidebar-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+
+.aim-dashboard__sidebar-scroll::-webkit-scrollbar-thumb {
+  background: var(--db-border);
+  border-radius: 4px;
+}
+
+.aim-dashboard__sidebar-top {
+  padding: 8px;
+  border-bottom: 1px solid var(--db-border-subtle);
+  flex-shrink: 0;
+}
+
+.aim-dashboard__new-folder-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.aim-dashboard__new-folder-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.aim-dashboard__no-folders {
+  padding: 16px 10px;
+  font-size: 12.5px;
+  color: var(--db-text-3);
+  margin: 0;
+}
+
+/* Skeleton loading */
+.aim-dashboard__skeleton-wrap {
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@keyframes db-shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+
+.aim-dashboard__skeleton {
+  height: 32px;
+  border-radius: var(--db-r-sm);
+  background: linear-gradient(
+    90deg,
+    var(--db-border-subtle) 25%,
+    var(--db-border) 50%,
+    var(--db-border-subtle) 75%
+  );
+  background-size: 1200px 100%;
+  animation: db-shimmer 1.5s infinite linear;
+}
+
+/* ── Folder list ────────────────────────────────────────────────────────────── */
+.aim-dashboard__folder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.aim-dashboard__folder-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: var(--db-r-sm);
+  transition: background 0.10s;
+}
+
+.aim-dashboard__folder-item:hover {
+  background: var(--db-surface-hover);
+}
+
+.aim-dashboard__folder-btn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-align: left;
+  padding: 7px 8px;
+  border-radius: var(--db-r-sm);
+  border: none;
+  background: transparent;
+  color: var(--db-text-2);
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+  font-family: var(--db-font);
+  overflow: hidden;
+  transition: color 0.12s;
+}
+
+.aim-dashboard__folder-btn:hover {
+  color: var(--db-text-1);
+  background: var(--db-surface-hover);
+}
+
+.aim-dashboard__folder-btn--active {
+  background: var(--db-folder-active-bg);
+  color: var(--db-folder-active-text);
+  font-weight: 600;
+  /* Left accent bar — the cleanest active indicator */
+  box-shadow: inset 3px 0 0 0 var(--db-accent);
+}
+
+.aim-dashboard__folder-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.aim-dashboard__folder-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aim-dashboard__folder-badge {
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 20px;
+  background: var(--db-border-subtle);
+  color: var(--db-text-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.aim-dashboard__folder-btn--active .aim-dashboard__folder-badge {
+  background: var(--db-accent-muted);
+  color: var(--db-accent-text);
+}
+
+/* Folder action buttons (▲▼✏️🗑) */
+.aim-dashboard__folder-actions {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  opacity: 0;
+  transition: opacity 0.12s;
+  flex-shrink: 0;
+  padding-right: 4px;
+}
+
+.aim-dashboard__folder-item:hover .aim-dashboard__folder-actions {
+  opacity: 1;
+}
+
+.aim-dashboard__icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--db-text-3);
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.12s, background 0.12s;
+  flex-shrink: 0;
+}
+
+.aim-dashboard__icon-btn:hover:not(:disabled) {
+  color: var(--db-text-1);
+  background: var(--db-border-subtle);
+}
+
+.aim-dashboard__icon-btn:disabled {
+  opacity: 0.22;
+  cursor: not-allowed;
+}
+
+.aim-dashboard__icon-btn--danger:hover:not(:disabled) {
+  color: var(--db-danger-text);
+  background: var(--db-danger-muted);
+}
+
+.aim-dashboard__folder-rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  font-size: 13.5px;
+  margin: 1px 0;
+}
+
+/* ── Main content area ──────────────────────────────────────────────────────── */
+.aim-dashboard__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--db-bg);
+}
+
+/* Toolbar */
+.aim-dashboard__toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px 14px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--db-border-subtle);
+}
+
+.aim-dashboard__toolbar-left {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.aim-dashboard__breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--db-text-3);
+  margin: 0;
+}
+
+.aim-dashboard__bc-sep {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.aim-dashboard__page-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--db-text-1);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aim-dashboard__toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Search */
+.aim-dashboard__search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.aim-dashboard__search-icon {
+  position: absolute;
+  left: 9px;
+  color: var(--db-text-3);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+
+.aim-dashboard__search {
+  padding: 6px 12px 6px 30px;
+  border-radius: var(--db-r-sm);
+  border: 1px solid var(--db-border);
+  background: var(--db-surface);
+  color: var(--db-text-1);
+  font-size: 13px;
+  font-family: var(--db-font);
+  width: 190px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.aim-dashboard__search:focus {
+  outline: none;
+  border-color: var(--db-accent);
+  box-shadow: 0 0 0 3px var(--db-accent-muted);
+}
+
+.aim-dashboard__search::placeholder {
+  color: var(--db-text-3);
+}
+
+.aim-dashboard__search:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.aim-dashboard__new-board-input {
+  width: 160px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* Scrollable board area */
+.aim-dashboard__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+.aim-dashboard__content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.aim-dashboard__content::-webkit-scrollbar-thumb {
+  background: var(--db-border);
+  border-radius: 6px;
+}
+
+/* Footer */
+.aim-dashboard__footer {
+  padding: 10px 24px;
+  font-size: 12px;
+  color: var(--db-text-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--db-border-subtle);
+  flex-shrink: 0;
+}
+
+/* ── Empty state ────────────────────────────────────────────────────────────── */
+.aim-dashboard__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 60px 24px;
+  text-align: center;
+  color: var(--db-text-3);
+  border: 1px dashed var(--db-border);
+  border-radius: var(--db-r-lg);
+  background: var(--db-surface);
+}
+
+.aim-dashboard__empty-icon {
+  font-size: 36px;
+  line-height: 1;
+  opacity: 0.55;
+}
+
+.aim-dashboard__empty-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--db-text-2);
+  margin: 0;
+}
+
+.aim-dashboard__empty-desc {
+  font-size: 12.5px;
+  max-width: 280px;
+  margin: 0;
+  line-height: 1.65;
+}
+
+/* ── Board table ────────────────────────────────────────────────────────────── */
+.aim-dashboard__table-wrap {
+  border: 1px solid var(--db-border);
+  border-radius: var(--db-r);
+  overflow: hidden;
+  background: var(--db-surface);
+  box-shadow: var(--db-shadow-xs);
+}
+
+.aim-dashboard__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.aim-dashboard__table th {
+  text-align: left;
+  padding: 10px 16px;
+  background: var(--db-surface-raised);
+  color: var(--db-text-3);
+  font-weight: 600;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid var(--db-border);
+  white-space: nowrap;
+}
+
+.aim-dashboard__table td {
+  padding: 12px 16px;
+  border-top: 1px solid var(--db-border-subtle);
+  vertical-align: middle;
+}
+
+.aim-dashboard__table tbody tr {
+  transition: background 0.1s;
+}
+
+.aim-dashboard__table tbody tr:hover td {
+  background: var(--db-surface-hover);
+}
+
+.aim-dashboard__name-cell {
+  width: 40%;
+}
+
+.aim-dashboard__board-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--db-text-1);
+  font-weight: 500;
+  min-width: 0;
+  width: 100%;
+}
+
+.aim-dashboard__board-title-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aim-dashboard__board-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--db-text-3);
+}
+
+.aim-dashboard__table tbody tr:hover .aim-dashboard__board-icon {
+  color: var(--db-accent);
+}
+
+/* Slide-in open arrow on row hover */
+.aim-dashboard__open-hint {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--db-accent);
+  opacity: 0;
+  font-size: 13px;
+  transition: opacity 0.15s, transform 0.15s;
+  transform: translateX(-6px);
+}
+
+.aim-dashboard__table tbody tr:hover .aim-dashboard__open-hint {
+  opacity: 0.7;
+  transform: translateX(0);
+}
+
+.aim-dashboard__meta-cell {
+  color: var(--db-text-3);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.aim-dashboard__author-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aim-dashboard__avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--db-accent-muted);
+  color: var(--db-accent-text);
+  font-size: 9.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: 0;
+}
+
+/* Row action buttons */
+.aim-dashboard__row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s;
+  white-space: nowrap;
+  justify-content: flex-end;
+}
+
+.aim-dashboard__table tbody tr:hover .aim-dashboard__row-actions {
+  opacity: 1;
+}
+
+.aim-dashboard__board-rename-input {
+  padding: 4px 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  font-family: var(--db-font);
+  border-radius: var(--db-r-sm);
+  border: 1px solid var(--db-accent);
+  background: var(--db-surface);
+  color: var(--db-text-1);
+  width: 100%;
+  min-width: 130px;
+  box-shadow: 0 0 0 3px var(--db-accent-muted);
+}
+
+.aim-dashboard__board-rename-input:focus {
+  outline: none;
+}
+
+/* ── Error banner ───────────────────────────────────────────────────────────── */
+.aim-dashboard__error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 16px 0;
+  padding: 10px 14px;
+  border-radius: var(--db-r-sm);
+  background: var(--db-danger-muted);
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  color: var(--db-danger-text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.aim-dashboard__error-close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+  opacity: 0.65;
+  transition: opacity 0.12s;
+}
+
+.aim-dashboard__error-close:hover {
+  opacity: 1;
+}
+
+/* ── Auth / guard screens ───────────────────────────────────────────────────── */
+.aim-dashboard__centered {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.aim-dashboard__card {
+  max-width: 380px;
+  width: 100%;
+  padding: 40px 32px;
+  text-align: center;
+  border: 1px solid var(--db-border);
+  border-radius: var(--db-r-lg);
+  background: var(--db-surface);
+  box-shadow: var(--db-shadow-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.aim-dashboard__card-icon {
+  font-size: 40px;
+  line-height: 1;
+}
+
+.aim-dashboard__card h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.aim-dashboard__card p {
+  color: var(--db-text-2);
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ── Spinner ────────────────────────────────────────────────────────────────── */
+@keyframes db-spin {
+  to { transform: rotate(360deg); }
+}
+
+.aim-dashboard__spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid var(--db-border);
+  border-top-color: var(--db-accent);
+  animation: db-spin 0.7s linear infinite;
+}
+
+/* ── Shared input ───────────────────────────────────────────────────────────── */
+.aim-dashboard__input {
+  background: var(--db-surface);
+  border: 1px solid var(--db-border);
+  color: var(--db-text-1);
+  padding: 6px 12px;
+  border-radius: var(--db-r-sm);
+  font-size: 13.5px;
+  font-family: var(--db-font);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.aim-dashboard__input:focus {
+  outline: none;
+  border-color: var(--db-accent);
+  box-shadow: 0 0 0 3px var(--db-accent-muted);
+}
+
+.aim-dashboard__input::placeholder {
+  color: var(--db-text-3);
+}
+
+.aim-dashboard__input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Hint / footer text ─────────────────────────────────────────────────────── */
+.aim-dashboard__hint {
+  font-size: 12.5px;
+  color: var(--db-text-3);
+  line-height: 1.6;
+  margin: 8px 0 0;
+}
+
+.aim-dashboard__hint a,
+.aim-dashboard__card a {
+  color: var(--db-accent);
+  text-decoration: none;
+}
+
+.aim-dashboard__hint a:hover,
+.aim-dashboard__card a:hover {
+  text-decoration: underline;
+}

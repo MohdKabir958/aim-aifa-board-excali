@@ -139,15 +139,39 @@ html.dark .excalidraw-app,
 
 /* Sits beside Excalidraw’s main menu (not under it): matches FixedSideContainer
    offset + --lg-button-size + small gap. Vars live on `.excalidraw` only, so use rem. */
-.aimtutor-brand {
+.aimtutor-brand-row {
   position: absolute;
   top: 1rem;
   left: calc(1rem + 2.25rem + 0.5rem);
   z-index: var(--zIndex-layerUI, 4);
   display: inline-flex;
   align-items: center;
+  gap: 0.75rem;
   pointer-events: auto;
+}
+
+.aimtutor-brand {
+  position: static;
+  display: inline-flex;
+  align-items: center;
   text-decoration: none;
+}
+
+.aimtutor-board-back {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #2563eb;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.excalidraw.theme--dark .aimtutor-board-back,
+.excalidraw-app:has(.excalidraw.theme--dark) .aimtutor-board-back {
+  color: #93c5fd;
+}
+
+.aimtutor-board-back:hover {
+  text-decoration: underline;
 }
 
 .aimtutor-wordmark {
@@ -237,17 +261,17 @@ html.dark
 }
 
 @media screen and (min-width: 1921px) {
-  .aimtutor-brand {
+  .aimtutor-brand-row {
     left: calc(1rem + 2.5rem + 0.5rem);
   }
 
-  :root[dir="rtl"] .aimtutor-brand {
+  :root[dir="rtl"] .aimtutor-brand-row {
     left: auto;
     right: calc(1rem + 2.5rem + 0.5rem);
   }
 }
 
-:root[dir="rtl"] .aimtutor-brand {
+:root[dir="rtl"] .aimtutor-brand-row {
   left: auto;
   right: calc(1rem + 2.25rem + 0.5rem);
 }
@@ -321,12 +345,12 @@ html.dark .aimtutor-auth__btn--primary,
 }
 
 @media (max-width: 768px) {
-  .aimtutor-brand {
+  .aimtutor-brand-row {
     top: 0.75rem;
     left: calc(0.75rem + 2.25rem + 0.5rem);
   }
 
-  :root[dir="rtl"] .aimtutor-brand {
+  :root[dir="rtl"] .aimtutor-brand-row {
     left: auto;
     right: calc(0.75rem + 2.25rem + 0.5rem);
   }

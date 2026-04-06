@@ -34,8 +34,10 @@ import {
   isDevEnv,
 } from "@excalidraw/common";
 import polyfill from "@excalidraw/excalidraw/polyfill";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadFromBlob } from "@excalidraw/excalidraw/data/blob";
+import { serializeAsJSON } from "@excalidraw/excalidraw/data/json";
+import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import {
@@ -149,6 +151,8 @@ import { AimtutorWordmark } from "./components/AimtutorWordmark";
 import { AIComponents } from "./components/AI";
 import { useScreenRecorder } from "./hooks/useScreenRecorder";
 import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
+import { DashboardPage } from "./dashboard/DashboardPage";
+import { getBoardWithScene, putBoardScene } from "./data/workspaceApi";
 
 import "./index.scss";
 
@@ -222,20 +226,41 @@ const shareableLinkConfirmDialog = {
 const initializeScene = async (opts: {
   collabAPI: CollabAPI | null;
   excalidrawAPI: ExcalidrawImperativeAPI;
+  fetchCloudBoard?: (boardId: string) => Promise<ExcalidrawInitialDataState>;
 }): Promise<
   { scene: ExcalidrawInitialDataState | null } & (
     | { isExternalScene: true; id: string; key: string }
     | { isExternalScene: false; id?: null; key?: null }
   )
 > => {
+  const localDataState = importFromLocalStorage();
+
+  const boardPathMatch = window.location.pathname.match(/^\/board\/(\d+)$/);
+  const cloudBoardId = boardPathMatch ? boardPathMatch[1] : null;
+
+  if (cloudBoardId && opts.fetchCloudBoard) {
+    try {
+      const cloudScene = await opts.fetchCloudBoard(cloudBoardId);
+      return { scene: cloudScene, isExternalScene: false };
+    } catch (e: any) {
+      return {
+        scene: {
+          appState: {
+            errorMessage:
+              e?.message || "Could not load board. Sign in and try again.",
+          },
+        },
+        isExternalScene: false,
+      };
+    }
+  }
+
   const searchParams = new URLSearchParams(window.location.search);
   const id = searchParams.get("id");
   const jsonBackendMatch = window.location.hash.match(
     /^#json=([a-zA-Z0-9_-]+),([a-zA-Z0-9_-]+)$/,
   );
   const externalUrlMatch = window.location.hash.match(/^#url=(.*)$/);
-
-  const localDataState = importFromLocalStorage();
 
   let scene: Omit<
     RestoredDataState,
@@ -390,7 +415,86 @@ const ExcalidrawWrapper = () => {
     },
   });
 
-  const { openSignIn, openSignUp, isSignedIn } = useAppAuth();
+  const { openSignIn, openSignUp, isSignedIn, getToken } = useAppAuth();
+  const navigate = useNavigate();
+  const { boardId: boardIdParam } = useParams<{ boardId?: string }>();
+  const boardId = boardIdParam ?? null;
+  const cloudBoardMetaRef = useRef<{ id: string; updatedAt: string } | null>(
+    null,
+  );
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
+
+  const fetchCloudBoard = useCallback(async (boardIdStr: string) => {
+    const ls = importFromLocalStorage();
+    const { board, scene } = await getBoardWithScene(
+      getTokenRef.current,
+      boardIdStr,
+    );
+    cloudBoardMetaRef.current = {
+      id: boardIdStr,
+      updatedAt: new Date(board.updatedAt).toISOString(),
+    };
+    const s = scene as {
+      elements?: Parameters<typeof restoreElements>[0];
+      appState?: Parameters<typeof restoreAppState>[0];
+      files?: BinaryFiles;
+    };
+    return {
+      elements: restoreElements(s.elements ?? [], null, {
+        repairBindings: true,
+        deleteInvisibleElements: true,
+      }),
+      appState: restoreAppState(s.appState ?? {}, ls?.appState ?? null),
+      files: s.files ?? {},
+      scrollToContent: true,
+    } as ExcalidrawInitialDataState;
+  }, []);
+
+  const saveCloudBoardDebounced = useMemo(
+    () =>
+      debounce(
+        async (
+          elements: readonly OrderedExcalidrawElement[],
+          appState: AppState,
+          files: BinaryFiles,
+        ) => {
+          const meta = cloudBoardMetaRef.current;
+          if (!meta?.id) {
+            return;
+          }
+          try {
+            const raw = serializeAsJSON(elements, appState, files, "local");
+            const sceneObj = JSON.parse(raw) as Record<string, unknown>;
+            const { board } = await putBoardScene(
+              getTokenRef.current,
+              meta.id,
+              {
+                scene: sceneObj,
+                expectedUpdatedAt: meta.updatedAt,
+              },
+            );
+            cloudBoardMetaRef.current = {
+              id: meta.id,
+              updatedAt: new Date(board.updatedAt).toISOString(),
+            };
+          } catch (e: any) {
+            const msg = String(e?.message || "Could not save board");
+            const api = excalidrawAPIRef.current;
+            if (api) {
+              api.setToast({
+                message:
+                  msg.includes("modified") || msg.includes("409")
+                    ? "Board was updated elsewhere. Reload the page."
+                    : msg,
+              });
+            }
+          }
+        },
+        2500,
+      ),
+    [],
+  );
 
   const [errorMessage, setErrorMessage] = useState("");
   const isCollabDisabled = isRunningInIframe();
@@ -437,6 +541,33 @@ const ExcalidrawWrapper = () => {
   });
 
   const [, forceRefresh] = useState(false);
+
+  useEffect(() => {
+    if (boardId) {
+      LocalData.pauseSave("cloudBoard");
+      return () => {
+        LocalData.resumeSave("cloudBoard");
+      };
+    }
+  }, [boardId]);
+
+  useEffect(() => {
+    if (!boardId) {
+      cloudBoardMetaRef.current = null;
+    }
+  }, [boardId]);
+
+  useEffect(() => {
+    if (!boardId) {
+      return;
+    }
+    const flush = () => saveCloudBoardDebounced.flush();
+    window.addEventListener(EVENT.BEFORE_UNLOAD, flush);
+    return () => {
+      window.removeEventListener(EVENT.BEFORE_UNLOAD, flush);
+      saveCloudBoardDebounced.flush();
+    };
+  }, [boardId, saveCloudBoardDebounced]);
 
   useEffect(() => {
     if (isDevEnv()) {
@@ -543,10 +674,12 @@ const ExcalidrawWrapper = () => {
       return;
     }
 
-    initializeScene({ collabAPI, excalidrawAPI }).then(async (data) => {
-      loadImages(data, /* isInitialLoad */ true);
-      initialStatePromiseRef.current.promise.resolve(data.scene);
-    });
+    initializeScene({ collabAPI, excalidrawAPI, fetchCloudBoard }).then(
+      async (data) => {
+        loadImages(data, /* isInitialLoad */ true);
+        initialStatePromiseRef.current.promise.resolve(data.scene);
+      },
+    );
 
     const onHashChange = async (event: HashChangeEvent) => {
       event.preventDefault();
@@ -560,18 +693,20 @@ const ExcalidrawWrapper = () => {
         }
         excalidrawAPI.updateScene({ appState: { isLoading: true } });
 
-        initializeScene({ collabAPI, excalidrawAPI }).then((data) => {
-          loadImages(data);
-          if (data.scene) {
-            excalidrawAPI.updateScene({
-              elements: restoreElements(data.scene.elements, null, {
-                repairBindings: true,
-              }),
-              appState: restoreAppState(data.scene.appState, null),
-              captureUpdate: CaptureUpdateAction.IMMEDIATELY,
-            });
-          }
-        });
+        initializeScene({ collabAPI, excalidrawAPI, fetchCloudBoard }).then(
+          (data) => {
+            loadImages(data);
+            if (data.scene) {
+              excalidrawAPI.updateScene({
+                elements: restoreElements(data.scene.elements, null, {
+                  repairBindings: true,
+                }),
+                appState: restoreAppState(data.scene.appState, null),
+                captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+              });
+            }
+          },
+        );
       }
     };
 
@@ -666,7 +801,14 @@ const ExcalidrawWrapper = () => {
         false,
       );
     };
-  }, [isCollabDisabled, collabAPI, excalidrawAPI, setLangCode, loadImages]);
+  }, [
+    isCollabDisabled,
+    collabAPI,
+    excalidrawAPI,
+    setLangCode,
+    loadImages,
+    fetchCloudBoard,
+  ]);
 
   useEffect(() => {
     const unloadHandler = (event: BeforeUnloadEvent) => {
@@ -740,6 +882,14 @@ const ExcalidrawWrapper = () => {
           }
         }
       });
+    }
+
+    if (boardId && excalidrawAPI) {
+      saveCloudBoardDebounced(
+        excalidrawAPI.getSceneElementsIncludingDeleted(),
+        appState,
+        files,
+      );
     }
 
     // Render the debug scene if the debug canvas is available
@@ -938,14 +1088,26 @@ const ExcalidrawWrapper = () => {
         "is-collaborating": isCollaborating,
       })}
     >
-      <a
-        className="aimtutor-brand"
-        href="/"
-        aria-label="aimtutor.ai home"
-        title="aimtutor.ai"
-      >
-        <AimtutorWordmark variant="toolbar" />
-      </a>
+      <div className="aimtutor-brand-row">
+        <Link
+          className="aimtutor-brand"
+          to="/"
+          aria-label="aimtutor.ai home"
+          title="aimtutor.ai"
+        >
+          <AimtutorWordmark variant="toolbar" />
+        </Link>
+        {boardId ? (
+          <Link className="aimtutor-board-back" to="/dashboard">
+            Workspace
+          </Link>
+        ) : null}
+        {isClerkEnabled() && isSignedIn && !boardId ? (
+          <Link className="aimtutor-board-back" to="/dashboard">
+            My workspace
+          </Link>
+        ) : null}
+      </div>
       <Excalidraw
         onChange={onChange}
         onExport={onExport}
@@ -992,14 +1154,15 @@ const ExcalidrawWrapper = () => {
         theme={editorTheme}
         renderTopRightUI={(isMobile) => {
           const showCollab = !isMobile && collabAPI && !isCollabDisabled;
+          const showAuthBar = !isMobile || isClerkEnabled();
 
-          if (!isClerkEnabled && !showCollab) {
+          if (!showCollab && !showAuthBar) {
             return null;
           }
 
           return (
             <div className="excalidraw-ui-top-right excalidraw-ui-top-right--aimtutor">
-              {isClerkEnabled ? <AppTopBarAuth /> : null}
+              {showAuthBar ? <AppTopBarAuth /> : null}
               {showCollab ? (
                 <>
                   {collabError.message && (
@@ -1248,7 +1411,7 @@ const ExcalidrawWrapper = () => {
                 );
               },
             },
-            ...(isClerkEnabled
+            ...(isClerkEnabled()
               ? isSignedIn
                 ? [
                     {
@@ -1261,10 +1424,24 @@ const ExcalidrawWrapper = () => {
             {
               label: "Sign in",
               category: DEFAULT_CATEGORIES.app,
-              predicate: isClerkEnabled && !isSignedIn,
+              predicate: isClerkEnabled() && !isSignedIn,
               icon: usersIcon,
               keywords: ["signin", "login", "auth"],
               perform: () => openSignIn(),
+            },
+            {
+              label: "My workspace",
+              category: DEFAULT_CATEGORIES.app,
+              predicate: isClerkEnabled() && isSignedIn,
+              icon: usersIcon,
+              keywords: [
+                "dashboard",
+                "folders",
+                "boards",
+                "workspace",
+                "teaching",
+              ],
+              perform: () => navigate("/dashboard"),
             },
 
             {
@@ -1321,20 +1498,26 @@ const ExcalidrawWrapper = () => {
   );
 };
 
-const ExcalidrawApp = () => {
-  const isCloudExportWindow =
-    window.location.pathname === "/excalidraw-plus-export";
-  if (isCloudExportWindow) {
-    return <ExcalidrawPlusIframeExport />;
-  }
+const EditorRouteTree = () => (
+  <Provider store={appJotaiStore}>
+    <ExcalidrawAPIProvider>
+      <ExcalidrawWrapper />
+    </ExcalidrawAPIProvider>
+  </Provider>
+);
 
+const ExcalidrawApp = () => {
   return (
     <TopErrorBoundary>
-      <Provider store={appJotaiStore}>
-        <ExcalidrawAPIProvider>
-          <ExcalidrawWrapper />
-        </ExcalidrawAPIProvider>
-      </Provider>
+      <Routes>
+        <Route
+          path="/excalidraw-plus-export"
+          element={<ExcalidrawPlusIframeExport />}
+        />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/board/:boardId" element={<EditorRouteTree />} />
+        <Route path="/*" element={<EditorRouteTree />} />
+      </Routes>
     </TopErrorBoundary>
   );
 };
