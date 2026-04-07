@@ -85,20 +85,36 @@ const ColorPickerPopupContent = ({
 
   const [eyeDropperState, setEyeDropperState] = useAtom(activeEyeDropperAtom);
 
-  const colorInputJSX = (
-    <div>
-      <PickerHeading>{t("colorPicker.hexCode")}</PickerHeading>
-      <ColorInput
-        color={color || ""}
-        label={label}
-        onChange={(color) => {
-          onChange(color);
-        }}
-        colorPickerType={type}
-        placeholder={t("colorPicker.color")}
-      />
-    </div>
-  );
+  const colorInputJSX = (() => {
+    // Attempt to standardize to an exact 7 character RGB string for <input type="color"> compatibility
+    let hexValue = color ? (color.startsWith("#") ? color.slice(0, 7) : "#000000") : "#ffffff";
+    
+    return (
+      <div style={{ marginTop: "4px" }}>
+        <PickerHeading>Custom Color</PickerHeading>
+        <div style={{ position: "relative", width: "100%", height: "32px", borderRadius: "6px", overflow: "hidden", border: "1px solid var(--default-border-color, #d1d5db)" }}>
+          {/* Overlaying the input with negative margins hides the ugly browser-specific inner swatch borders */}
+          <input
+            type="color"
+            value={hexValue}
+            onChange={(e) => onChange(e.target.value)}
+            style={{
+              position: "absolute",
+              top: "-10px",
+              left: "-10px",
+              width: "calc(100% + 20px)",
+              height: "calc(100% + 20px)",
+              border: "none",
+              padding: "0",
+              margin: "0",
+              cursor: "pointer",
+            }}
+            title="Choose custom RGB color"
+          />
+        </div>
+      </div>
+    );
+  })();
 
   const colorPickerContentRef = useRef<HTMLDivElement>(null);
 

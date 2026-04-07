@@ -102,7 +102,10 @@ export const DefaultSidebar = Object.assign(
                 <Sidebar.TabTrigger tab={CANVAS_SEARCH_TAB}>
                   {searchIcon}
                 </Sidebar.TabTrigger>
-                <Sidebar.TabTrigger tab={LIBRARY_SIDEBAR_TAB}>
+                <Sidebar.TabTrigger 
+                  tab={LIBRARY_SIDEBAR_TAB}
+                  style={{ opacity: 0.2, pointerEvents: "none", cursor: "not-allowed" }}
+                >
                   {LibraryIcon}
                 </Sidebar.TabTrigger>
                 <DefaultSidebarTabTriggersTunnel.Out />

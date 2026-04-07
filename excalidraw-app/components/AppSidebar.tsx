@@ -16,13 +16,15 @@ export const AppSidebar = () => {
       <DefaultSidebar.TabTriggers>
         <Sidebar.TabTrigger
           tab="comments"
-          style={{ opacity: openSidebar?.tab === "comments" ? 1 : 0.4 }}
+          title="Make comments (Coming soon)"
+          style={{ opacity: 0.2, pointerEvents: "none", cursor: "not-allowed" }}
         >
           {messageCircleIcon}
         </Sidebar.TabTrigger>
         <Sidebar.TabTrigger
           tab="presentation"
-          style={{ opacity: openSidebar?.tab === "presentation" ? 1 : 0.4 }}
+          title="Create presentations (Coming soon)"
+          style={{ opacity: 0.2, pointerEvents: "none", cursor: "not-allowed" }}
         >
           {presentationIcon}
         </Sidebar.TabTrigger>

@@ -195,6 +195,7 @@ export function DashboardPage() {
   const [folders, setFolders] = useState<ApiFolder[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [boards, setBoards] = useState<ApiBoardListItem[]>([]);
+  const [boardsLoading, setBoardsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [newFolderName, setNewFolderName] = useState(""); // kept for compat, unused by modal
   const [search, setSearch] = useState("");
@@ -321,9 +322,12 @@ export function DashboardPage() {
     if (!selectedFolderId || !isSignedIn) { setBoards([]); return; }
     let cancelled = false;
     setSearch("");
+    setBoardsLoading(true);
+    setBoards([]);
     (async () => {
       try { await refreshBoards(selectedFolderId); }
       catch (e: any) { if (!cancelled) setError(e?.message || "Failed to load boards"); }
+      finally { if (!cancelled) setBoardsLoading(false); }
     })();
     return () => { cancelled = true; };
   }, [selectedFolderId, isSignedIn, refreshBoards]);
@@ -351,12 +355,16 @@ export function DashboardPage() {
   };
 
   // ── Folders ──────────────────────────────────────────────────────────────────
-  const openNewFolderModal = () => {
+  const openNewFolderModal = (e?: React.SyntheticEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     setModalFolderName("");
     setShowNewFolderModal(true);
   };
 
-  const closeNewFolderModal = () => {
+  const closeNewFolderModal = (e?: React.SyntheticEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     setShowNewFolderModal(false);
     setModalFolderName("");
   };
@@ -396,12 +404,29 @@ export function DashboardPage() {
   const onDeleteFolder = async (folderId: string) => {
     if (!window.confirm("Delete this folder and all boards inside?")) return;
     setError(null);
+    
+    // Optimistic deletion
+    const previousFolders = [...folders];
+    const previousBoards = [...boards];
+    const nextFolderId = folders.find((f) => f.id !== folderId)?.id ?? null;
+    
+    setFolders((prev) => prev.filter((f) => f.id !== folderId));
+    if (selectedFolderId === folderId) {
+      setSelectedFolderId(nextFolderId);
+      if (!nextFolderId) setBoards([]);
+    }
+
     try {
       await deleteFolder(getToken, folderId);
-      const { folders: fs } = await refreshFolders();
-      if (selectedFolderId === folderId) setSelectedFolderId(fs[0]?.id ?? null);
-      if (!fs.length) setBoards([]);
-    } catch (e: any) { setError(e?.message || "Could not delete folder"); }
+    } catch (e: any) { 
+      // Revert if error
+      setFolders(previousFolders);
+      if (selectedFolderId === folderId) {
+        setSelectedFolderId(folderId);
+        setBoards(previousBoards);
+      }
+      setError(e?.message || "Could not delete folder"); 
+    }
   };
 
   const startFolderRename = (folder: ApiFolder) => {
@@ -444,14 +469,17 @@ export function DashboardPage() {
     } finally { setActionLoading(false); }
   };
 
-  // ── Boards ────────────────────────────────────────────────────────────────────
-  const openNewBoardModal = () => {
+  const openNewBoardModal = (e?: React.SyntheticEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     if (!selectedFolderId) return;
     setModalBoardTitle("");
     setShowNewBoardModal(true);
   };
 
-  const closeNewBoardModal = () => {
+  const closeNewBoardModal = (e?: React.SyntheticEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     setShowNewBoardModal(false);
     setModalBoardTitle("");
   };
@@ -476,9 +504,9 @@ export function DashboardPage() {
     );
 
     try {
-      await createBoard(getToken, selectedFolderId, title || undefined);
-      // Refresh to get the real board ID (needed to open it)
-      await refreshBoards(selectedFolderId);
+      const realBoard = await createBoard(getToken, selectedFolderId, title || undefined);
+      // Replace the local temporary board placeholder with real server data
+      setBoards((prev) => prev.map((b) => b.id === tempId ? realBoard : b));
     } catch (e: any) {
       // Revert placeholder
       setBoards((prev) => prev.filter((b) => b.id !== tempId));
@@ -495,17 +523,26 @@ export function DashboardPage() {
     if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return;
     setActionLoading(true);
     setError(null);
+
+    // Optimistic deletion locally
+    const previousBoards = [...boards];
+    const previousFolders = [...folders];
+    
+    setBoards((prev) => prev.filter((b) => b.id !== boardId));
+    setFolders((prev) =>
+      prev.map((f) =>
+        f.id === selectedFolderId
+          ? { ...f, boardCount: Math.max(0, (f.boardCount ?? 1) - 1) }
+          : f,
+      ),
+    );
+
     try {
       await deleteBoard(getToken, boardId);
-      setBoards((prev) => prev.filter((b) => b.id !== boardId));
-      setFolders((prev) =>
-        prev.map((f) =>
-          f.id === selectedFolderId
-            ? { ...f, boardCount: Math.max(0, (f.boardCount ?? 1) - 1) }
-            : f,
-        ),
-      );
     } catch (e: any) {
+      // Revert if error
+      setBoards(previousBoards);
+      setFolders(previousFolders);
       setError(e?.message || "Could not delete board");
     } finally { setActionLoading(false); }
   };
@@ -766,9 +803,6 @@ export function DashboardPage() {
                             <IconFolder active={f.id === selectedFolderId} />
                           </span>
                           <span className="aim-dashboard__folder-name">{f.name}</span>
-                          {typeof f.boardCount === "number" && (
-                            <span className="aim-dashboard__folder-badge">{f.boardCount}</span>
-                          )}
                         </button>
                         <div className="aim-dashboard__folder-actions">
                           <button
@@ -863,6 +897,12 @@ export function DashboardPage() {
                   Create a folder in the sidebar to start organising your teaching boards.
                 </p>
               </div>
+            ) : boardsLoading ? (
+              <div className="aim-dashboard__skeleton-wrap" style={{ padding: "30px 20px" }}>
+                {[80, 50, 65].map((w) => (
+                  <div key={w} className="aim-dashboard__skeleton" style={{ width: `${w}%`, height: 48, marginBottom: 12 }} />
+                ))}
+              </div>
             ) : filteredBoards.length === 0 ? (
               <div className="aim-dashboard__empty">
                 <span className="aim-dashboard__empty-icon">
@@ -894,11 +934,12 @@ export function DashboardPage() {
                       <tr
                         key={b.id}
                         onClick={() => {
+                          if (b.id.toString().startsWith("__tmp__")) return;
                           if (editingBoardId !== b.id) {
                             navigate(`/board/${b.id}`);
                           }
                         }}
-                        style={{ cursor: editingBoardId === b.id ? "default" : "pointer" }}
+                        style={{ cursor: editingBoardId === b.id || b.id.toString().startsWith("__tmp__") ? "default" : "pointer" }}
                       >
                         {/* Name */}
                         <td className="aim-dashboard__name-cell">
@@ -1004,14 +1045,13 @@ export function DashboardPage() {
         <div
           className="db-modal-overlay"
           role="presentation"
-          onClick={closeNewBoardModal}
+          onMouseDown={(e) => { if (e.target === e.currentTarget) closeNewBoardModal(e); }}
         >
           <div
             className="db-modal"
             role="dialog"
             aria-modal
             aria-labelledby="db-modal-title"
-            onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
             <div className="db-modal__header">
@@ -1058,14 +1098,13 @@ export function DashboardPage() {
         <div
           className="db-modal-overlay"
           role="presentation"
-          onClick={closeNewFolderModal}
+          onMouseDown={(e) => { if (e.target === e.currentTarget) closeNewFolderModal(e); }}
         >
           <div
             className="db-modal"
             role="dialog"
             aria-modal
             aria-labelledby="db-folder-modal-title"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="db-modal__header">
               <div className="db-modal__header-icon">

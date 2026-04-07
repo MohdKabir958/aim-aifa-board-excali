@@ -147,7 +147,7 @@ html.dark .excalidraw-app,
   display: inline-flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.25rem;
+  gap: 18px;
   pointer-events: auto;
 }
 
@@ -155,11 +155,19 @@ html.dark .excalidraw-app,
   position: static;
   display: inline-flex;
   align-items: center;
+  height: 2.25rem; /* Force height to match the exact 36px Excalidraw hamburger */
   text-decoration: none;
 }
 
 /* ── Breadcrumb nav (beside logo in whiteboard editor) ───────────────────── */
 .aimtutor-breadcrumb {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  pointer-events: auto;
+  
   display: inline-flex;
   align-items: center;
   gap: 4px;

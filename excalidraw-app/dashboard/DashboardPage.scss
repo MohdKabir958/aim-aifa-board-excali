@@ -493,42 +493,12 @@ html.dark .aim-dashboard__new-folder-btn:hover:not(:disabled) {
   white-space: nowrap;
 }
 
-.aim-dashboard__folder-badge {
-  font-size: 11px;
-  font-weight: 600;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 20px;
-  background: var(--db-border-subtle);
-  color: var(--db-text-3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.aim-dashboard__folder-btn--active .aim-dashboard__folder-badge {
-  background: var(--db-accent-muted);
-  color: var(--db-accent);
-}
-
 /* Folder action buttons (▲▼✏️🗑) */
 .aim-dashboard__folder-actions {
   display: flex;
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s;
-}
-
-.aim-dashboard__folder-item:hover .aim-dashboard__folder-actions,
-.aim-dashboard__folder-item:has(.aim-dashboard__folder-actions button:focus) .aim-dashboard__folder-actions,
-.aim-dashboard__folder-item:focus-within .aim-dashboard__folder-actions {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 .aim-dashboard__icon-btn {

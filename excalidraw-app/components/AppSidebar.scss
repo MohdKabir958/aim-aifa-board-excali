@@ -33,4 +33,13 @@
   .link-button {
     margin: 0 auto;
   }
+
+  /* Visually disable the native "Library" tab to leave only the Search tab active */
+  .sidebar-tab-triggers [data-tab="library"],
+  .sidebar-tab-triggers button[value="library"],
+  [data-tab="library"] {
+    opacity: 0.2 !important;
+    pointer-events: none !important;
+    cursor: not-allowed !important;
+  }
 }
